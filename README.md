@@ -12,7 +12,7 @@ for discovery of the model structure
 
 ## Current status
 
-GitHub pages: [link](https://democratizing-models-project.github.io/ModelVisualization/)
+GitHub pages: [link](https://democratizing-models.github.io/ModelVisualization/)
 
 ## Locations of `json` models
 
@@ -21,13 +21,13 @@ GitHub pages: [link](https://democratizing-models-project.github.io/ModelVisuali
 
 ## Local deploying and hosting 
 
-Just run the following commends. Page will be opened in browser
+Just run the following commands. Page will be opened in browser
 ```
-git clone "https://github.com/Democratizing-Models-Project/ModelVisualization"
-cd .\ModelVisualization\
-.\index.html
+git clone "https://github.com/Democratizing-Models/ModelVisualization"
+cd ./ModelVisualization/
+./index.html
 ```
-If using local file: page should have access to it. Hosting allows to achieve it 
+If using local file: page should have access to it. Hosting allows to achieve it.
 Run following command in `ModelVisualization` directory (after changing parameter of `fetchAndRenderTree` (at the very end of `index.html`) to json filename )
 ```
 python -m http.server 8000
