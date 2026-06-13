@@ -1,187 +1,37 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>JSON Tree Diagram</title>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Hi+Melody&display=swap');
-    body {
-      font-family: 'Hi Melody', sans-serif;
-      margin: 0;
-      padding: 0;
-      background-color: #f4f4f9;
-    }
-    #tree-container {
-      position: relative;
-      margin: 20px;
-      overflow: auto; /* Allow scrolling */
-    }
-    .tree {
-      display: flex;
-      flex-direction: column;
-      align-items: flex-start;
-      position: relative;
-    }
-    .node-wrapper {
-      display: flex;
-      flex-direction: row;
-      align-items: center;
-      margin: 5px 0;
-    }
-    .node {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      padding: 10px;
-      margin: 5px;
-      border-radius: 5px;
-      font-size: 16px;
-      text-align: center;
-      background-color: #d1e7fd; /* Default blue background */
-      border: 1px solid #a6c9f2;
-      cursor: pointer;
-      position: relative;
-      transition: transform 0.2s;
-    }
-    .node:hover {
-      transform: scale(1.1);
-    }
-    .node-array {
-      background-color: #ffe6a1; /* Yellow for arrays */
-      border-color: #f2c94c;
-    }
-    .node-object {
-      background-color: #a5f2c5; /* Green for objects */
-      border-color: #76d8a0;
-    }
-    .children {
-      display: none;
-      padding-left: 20px;
-      margin-top: 5px;
-      border-left: 2px solid #ddd;
-    }
-    .node.expanded + .children {
-      display: flex;
-      flex-direction: column;
-    }
-    .connection-line {
-      position: absolute;
-      width: 2px;
-      background-color: #ccc;
-    }
-  </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HS3 Model Viewer</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%231a1b26'/%3E%3Ccircle cx='5' cy='5' r='1.8' fill='%237aa2f7'/%3E%3Ccircle cx='11' cy='8' r='1.8' fill='%239ece6a'/%3E%3Ccircle cx='6' cy='11' r='1.8' fill='%23bb9af7'/%3E%3Cpath d='M5 5L11 8M11 8L6 11' stroke='%23565f89' stroke-width='1'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="/src/styles.css" />
 </head>
 <body>
-  <div style="padding:10px; background:#fff; border-bottom:1px solid #ddd; position:sticky; top:0; z-index:10;">
-    <label style="margin-right:10px;">Load local JSON:</label>
-    <input id="json-file" type="file" accept="application/json" />
-    <span id="status" style="margin-left:10px; color:#666;"></span>
-  </div>
-  <div id="tree-container"></div>
+  <header class="topbar">
+    <h1>HS3 Model Viewer</h1>
+    <div class="controls">
+      <label class="file-label">
+        Load model
+        <input id="file-input" type="file" accept=".json,application/json" />
+      </label>
+      <select id="sample-select" aria-label="Load bundled sample">
+        <option value="">Load a sample…</option>
+        <!-- options populated from the format registry in main.ts -->
+      </select>
+      <span id="format-badge" class="badge" hidden></span>
+      <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Toggle theme">☾</button>
+    </div>
+  </header>
 
-  <script>
-    const createTree = (data, key = null, depth = 0) => {
-      const wrapper = document.createElement('div');
-      wrapper.classList.add('node-wrapper');
+  <main class="layout">
+    <section id="tree-pane" class="tree-pane" aria-label="Model tree"></section>
+    <section id="dag-pane" class="dag-pane" aria-label="Dependency graph"></section>
+    <aside id="inspector-pane" class="inspector-pane" aria-label="Node inspector"></aside>
+  </main>
 
-      // Node element
-      const nodeElement = document.createElement('div');
-      nodeElement.classList.add('node');
-      if (Array.isArray(data)) {
-        nodeElement.classList.add('node-array');
-        nodeElement.textContent = key ? `${key}: [ ]` : '[ ]';
-      } else if (typeof data === 'object' && data !== null) {
-        nodeElement.classList.add('node-object');
-        nodeElement.textContent = key ? `${key}: { }` : '{ }';
-      } else {
-        nodeElement.textContent = key ? `${key}: ${data}` : data;
-      }
+  <div id="status" class="status" role="status"></div>
 
-      wrapper.appendChild(nodeElement);
-
-      // Children container
-      if (typeof data === 'object' && data !== null) {
-        const childrenContainer = document.createElement('div');
-        childrenContainer.classList.add('children');
-
-        // Draw children recursively
-        if (Array.isArray(data)) {
-          data.forEach((child, index) => {
-            const childNode = createTree(child, `[${index}]`, depth + 1);
-            childrenContainer.appendChild(childNode);
-          });
-        } else {
-          Object.entries(data).forEach(([childKey, childValue]) => {
-            const childNode = createTree(childValue, childKey, depth + 1);
-            childrenContainer.appendChild(childNode);
-          });
-        }
-
-        // Toggle expansion
-        nodeElement.addEventListener('click', (e) => {
-          e.stopPropagation();
-          nodeElement.classList.toggle('expanded');
-          console.debug("Node clicked:", { key, data });
-        });
-
-        wrapper.appendChild(childrenContainer);
-      }
-
-      return wrapper;
-    };
-
-    const renderTree = (data, containerId) => {
-      const container = document.getElementById(containerId);
-      container.innerHTML = '';
-      container.classList.add('tree');
-      const tree = createTree(data);
-      container.appendChild(tree);
-    };
-
-    const fetchAndRenderTree = async (url, containerId) => {
-      try {
-        const response = await fetch(url);
-        if (!response.ok) {
-          throw new Error(`Failed to load JSON: ${response.statusText}`);
-        }
-        const jsonData = await response.json();
-        renderTree(jsonData, containerId);
-        setStatus(`Loaded default JSON from ${url}`);
-      } catch (error) {
-        console.error("Error fetching or parsing JSON:", error);
-        const container = document.getElementById(containerId);
-        container.textContent = "Failed to load JSON data.";
-        setStatus(`Failed to load default JSON (${error.message})`);
-      }
-    };
-
-    const setStatus = (msg) => {
-      const status = document.getElementById('status');
-      if (status) status.textContent = msg;
-    };
-
-    const fileInput = document.getElementById('json-file');
-    fileInput.addEventListener('change', (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = () => {
-        try {
-          const jsonData = JSON.parse(reader.result);
-          renderTree(jsonData, 'tree-container');
-          setStatus(`Loaded local file: ${file.name}`);
-        } catch (err) {
-          console.error('Invalid JSON file', err);
-          setStatus('Invalid JSON file');
-        }
-      };
-      reader.readAsText(file);
-    });
-
-    // Fetch JSON from external file and render the tree (fallback)
-    fetchAndRenderTree('https://raw.githubusercontent.com/RUB-EP1/amplitude-serialization/refs/heads/main/models/lc2ppik-lhcb-2683025.json', 'tree-container');
-  </script>
+  <script type="module" src="/src/main.ts"></script>
 </body>
 </html>
-

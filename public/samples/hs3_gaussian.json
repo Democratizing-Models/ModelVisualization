@@ -1,0 +1,65 @@
+{
+  "metadata": {
+    "hs3_version": "0.2",
+    "packages": [{ "name": "example", "version": "0.0.1" }]
+  },
+  "distributions": [
+    {
+      "name": "model",
+      "type": "gaussian_dist",
+      "mean": "mu",
+      "sigma": "sigma",
+      "x": "obs_x"
+    },
+    {
+      "name": "constraint",
+      "type": "gaussian_dist",
+      "mean": "mu",
+      "sigma": 1.0,
+      "x": "mu_obs"
+    }
+  ],
+  "data": [
+    {
+      "name": "obsData",
+      "type": "unbinned",
+      "axes": [{ "name": "obs_x", "min": -5.0, "max": 5.0 }],
+      "entries": [-1.2, 0.3, 0.8, 1.1, 2.4]
+    }
+  ],
+  "likelihoods": [
+    {
+      "name": "likelihood",
+      "distributions": ["model"],
+      "data": ["obsData"],
+      "aux_distributions": ["constraint"]
+    }
+  ],
+  "domains": [
+    {
+      "name": "default_domain",
+      "type": "product_domain",
+      "axes": [
+        { "name": "mu", "min": -5.0, "max": 5.0 },
+        { "name": "sigma", "min": 0.0, "max": 10.0 }
+      ]
+    }
+  ],
+  "parameter_points": [
+    {
+      "name": "default_values",
+      "parameters": [
+        { "name": "mu", "value": 1.2 },
+        { "name": "sigma", "value": 2.0 }
+      ]
+    }
+  ],
+  "analyses": [
+    {
+      "name": "analysis",
+      "likelihood": "likelihood",
+      "domains": ["default_domain"],
+      "parameters_of_interest": ["mu"]
+    }
+  ]
+}

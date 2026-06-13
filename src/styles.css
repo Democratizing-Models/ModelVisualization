@@ -1,0 +1,236 @@
+/*
+ * Theming: the palette vars below are the default (Tokyo Night Dark).
+ * `[data-theme="light"]` overrides the same vars with the Tango palette.
+ * The --p* node palette references these hues, so node colours re-resolve per theme.
+ */
+:root, :root[data-theme="dark"] {
+  /* Tokyo Night Dark */
+  --bg: #1a1b26;
+  --bg-dark: #16161e;
+  --bg-panel: #1f2335;
+  --bg-hover: #292e42;
+  --fg: #c0caf5;
+  --fg-dim: #565f89;
+  --border: #2a2e44;
+  --blue: #7aa2f7;
+  --cyan: #7dcfff;
+  --green: #9ece6a;
+  --teal: #1abc9c;
+  --magenta: #bb9af7;
+  --red: #f7768e;
+  --orange: #ff9e64;
+  --yellow: #e0af68;
+  --badge-fg: #16161e; /* dark text on bright pastel badges */
+}
+
+:root[data-theme="light"] {
+  /* Tango (light) */
+  --bg: #ffffff;
+  --bg-dark: #eeeeec;
+  --bg-panel: #f5f5f4;
+  --bg-hover: #e4e4e1;
+  --fg: #2e3436;
+  --fg-dim: #888a85;
+  --border: #d3d7cf;
+  --blue: #3465a4;
+  --cyan: #06989a;
+  --green: #4e9a06;
+  --teal: #06989a;
+  --magenta: #75507b;
+  --red: #cc0000;
+  --orange: #ce5c00;
+  --yellow: #c4a000;
+  --badge-fg: #ffffff; /* light text on saturated Tango badges */
+}
+
+:root {
+  /* Generic, theme-aware node palette. kindColor() hashes a node's kind string
+   * to a slot, so any format's kinds get a stable, distinct colour — no per-kind
+   * config. */
+  --p0: var(--blue);    --p1: var(--cyan);   --p2: var(--green);  --p3: var(--teal);
+  --p4: var(--magenta); --p5: var(--orange); --p6: var(--yellow); --p7: var(--red);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 13px;
+  color: var(--fg);
+  background: var(--bg);
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 16px;
+  background: var(--bg-dark);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.topbar h1 { font-size: 15px; margin: 0; color: var(--fg); }
+.controls { display: flex; align-items: center; gap: 12px; }
+.file-label { color: var(--fg-dim); }
+input[type="file"], select {
+  background: var(--bg-panel);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 6px;
+  font: inherit;
+}
+.badge {
+  background: var(--magenta);
+  color: var(--badge-fg);
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-weight: 600;
+}
+.theme-toggle {
+  background: var(--bg-panel);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  width: 30px;
+  height: 26px;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+}
+.theme-toggle:hover { background: var(--bg-hover); }
+
+.layout {
+  display: grid;
+  grid-template-columns: 320px 1fr 380px;
+  height: calc(100vh - 96px);
+}
+.tree-pane { overflow: auto; padding: 12px 16px; }
+.inspector-pane {
+  overflow: auto;
+  padding: 12px 16px;
+  background: var(--bg-panel);
+  border-left: 1px solid var(--border);
+  color: var(--fg-dim);
+}
+
+/* Tree */
+.children { padding-left: 18px; border-left: 1px solid var(--border); margin-left: 9px; }
+.node-wrap { margin: 1px 0; }
+.node-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.node-row:hover { background: var(--bg-hover); }
+.node-row.selected { background: var(--bg-hover); outline: 1px solid var(--blue); }
+.node-row.flash { animation: flash 0.8s ease-out; }
+@keyframes flash { from { background: var(--yellow); } to { background: transparent; } }
+
+.caret {
+  background: none; border: none; color: var(--fg-dim);
+  cursor: pointer; width: 16px; padding: 0; font-size: 11px;
+}
+.node-name { color: var(--fg); }
+.node-id { color: var(--fg-dim); }
+.node-type { color: var(--fg-dim); font-style: italic; }
+.port { color: var(--cyan); }
+.tag-synth { color: var(--orange); font-size: 11px; }
+.tag-cycle { color: var(--red); font-size: 11px; }
+.values { padding-left: 40px; color: var(--fg-dim); font-size: 12px; }
+.produces { padding: 1px 6px 1px 22px; }
+
+.xref {
+  background: none; border: none; color: var(--blue);
+  cursor: pointer; font: inherit; padding: 0; text-align: left;
+}
+.xref:hover { text-decoration: underline; }
+
+/* Kind badge — background set inline by kindColor() */
+.kind-badge {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 1px 5px;
+  border-radius: 4px;
+  color: var(--badge-fg);
+  background: var(--fg-dim);
+  white-space: nowrap;
+}
+.node-row[data-kind] { border-left: 2px solid transparent; }
+
+/* Inspector */
+.insp-header { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.insp-header h2 { font-size: 15px; margin: 0; color: var(--fg); }
+.insp-id { color: var(--fg-dim); }
+.insp-fields { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; margin: 12px 0; }
+.insp-fields dt { color: var(--cyan); }
+.insp-fields dd { margin: 0; color: var(--fg); word-break: break-word; }
+.inspector-pane h3 { font-size: 12px; color: var(--fg-dim); text-transform: uppercase; margin: 14px 0 4px; }
+.insp-edges, .insp-diags { list-style: none; padding: 0; margin: 0; }
+.insp-edges li, .insp-diags li { padding: 2px 0; }
+.insp-edges li[data-role="output"] .xref { color: var(--green); }
+.insp-edges li[data-role="call"] .xref { color: var(--magenta); }
+.insp-diags li[data-level="error"] { color: var(--red); }
+.insp-diags li[data-level="warn"] { color: var(--yellow); }
+.insp-raw summary { cursor: pointer; color: var(--fg-dim); margin-top: 14px; }
+.insp-raw pre {
+  background: var(--bg-dark);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px;
+  overflow: auto;
+  color: var(--fg);
+}
+
+.status {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  padding: 6px 16px;
+  background: var(--bg-dark);
+  border-top: 1px solid var(--border);
+  color: var(--fg-dim);
+  font-size: 12px;
+}
+.status[data-level="error"] { color: var(--red); }
+
+/* DAG view */
+.dag-pane {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--border);
+}
+.dag-toolbar { display: flex; gap: 6px; padding: 8px; border-bottom: 1px solid var(--border); }
+.dag-hop-stepper { display: flex; align-items: center; gap: 6px; }
+.dag-hop-label {
+  color: var(--fg-dim); font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em;
+}
+.dag-step {
+  background: var(--bg-panel); color: var(--fg); border: 1px solid var(--border);
+  border-radius: 6px; width: 24px; height: 24px; padding: 0; cursor: pointer;
+  font: inherit; font-size: 15px; line-height: 1;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.dag-step:hover:not(:disabled) { background: var(--bg-hover); }
+.dag-step:disabled { opacity: 0.4; cursor: default; }
+.dag-hop-count { min-width: 1.5em; text-align: center; color: var(--fg); font-variant-numeric: tabular-nums; }
+.dag-svg { flex: 1; width: 100%; min-height: 0; touch-action: none; cursor: grab; }
+.dag-svg:active { cursor: grabbing; }
+
+.dag-edge { fill: none; stroke: var(--fg-dim); stroke-width: 1.2; }
+.dag-arrow-head { fill: var(--fg-dim); }
+
+.dag-node { cursor: pointer; }
+.dag-rect { fill: var(--fg-dim); opacity: 0.9; stroke: var(--border); stroke-width: 1; }
+.dag-node.focus .dag-rect { stroke: var(--blue); stroke-width: 2.5; opacity: 1; }
+.dag-node:hover .dag-rect { opacity: 1; }
+.dag-label { fill: var(--badge-fg); font-size: 12px; font-family: inherit; pointer-events: none; }
+.dag-hidden { fill: var(--badge-fg); font-size: 10px; pointer-events: none; }
+

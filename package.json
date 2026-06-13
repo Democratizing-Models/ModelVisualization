@@ -1,0 +1,24 @@
+{
+  "name": "model-visualization",
+  "version": "0.1.0",
+  "description": "Semantic frontend for visualizing DAG-structured models, with pluggable format adapters",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@types/node": "^22.9.0",
+    "jsdom": "^25.0.1",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10",
+    "vitest": "^2.1.4"
+  },
+  "dependencies": {
+    "ajv": "^8.17.1"
+  }
+}
