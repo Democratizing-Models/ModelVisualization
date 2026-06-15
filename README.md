@@ -9,8 +9,6 @@ acyclic graph of typed nodes connected by reference edges); the rendering layer
 operates only on that representation. A new format is added with one adapter and
 one registry entry.
 
-![screenshot](https://github.com/user-attachments/assets/5e19d5c2-b82e-4e20-a61b-e20925a0c3fa)
-
 GitHub Pages: <https://democratizing-models.github.io/ModelVisualization/>
 
 ## Supported formats
