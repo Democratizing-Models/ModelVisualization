@@ -32,12 +32,16 @@ describe('renderTree', () => {
     expect((picked as unknown as ModelNode).id).toBeTypeOf('string');
   });
 
-  it('expands lazily when a caret is clicked', () => {
+  it('toggles a subtree when its caret is clicked (small models start expanded)', () => {
     renderTree(model, index, host, () => {});
-    const collapsed = host.querySelectorAll('.children:not([hidden])').length;
-    const caret = [...host.querySelectorAll<HTMLButtonElement>('.caret')].find((c) => c.textContent === '▸');
-    caret?.click();
-    expect(host.querySelectorAll('.children:not([hidden])').length).toBeGreaterThan(collapsed);
+    // small model → fully expanded; find an open expandable row.
+    const open = [...host.querySelectorAll<HTMLButtonElement>('.caret')].find((c) => c.textContent === '▾');
+    expect(open).toBeTruthy();
+    const before = host.querySelectorAll('.children:not([hidden])').length;
+    open!.click(); // collapse
+    expect(host.querySelectorAll('.children:not([hidden])').length).toBeLessThan(before);
+    open!.click(); // re-expand
+    expect(host.querySelectorAll('.children:not([hidden])').length).toBe(before);
   });
 });
 
@@ -60,22 +64,22 @@ describe('renderInspector', () => {
     expect(navigated).not.toBeNull();
   });
 
-  it('keeps the Raw source section expanded across node selections', () => {
+  it('Raw source is open by default and its collapsed state persists across selections', () => {
     const host = document.createElement('div');
     const raw = (): HTMLDetailsElement => host.querySelector<HTMLDetailsElement>('.insp-raw')!;
     const show = (id: string): void =>
       renderInspector(model, index, model.nodes.find((n) => n.id === id)!, host, () => {});
 
     show('likelihood');
-    expect(raw().open).toBe(false);
-    raw().open = true;
-    raw().dispatchEvent(new Event('toggle')); // user expands it
+    expect(raw().open).toBe(true); // open by default
+    raw().open = false;
+    raw().dispatchEvent(new Event('toggle')); // user collapses it
 
     show('model'); // select a different node — inspector rebuilds
-    expect(raw().open).toBe(true);
+    expect(raw().open).toBe(false); // collapse persisted
 
     // reset module state so it doesn't leak into other tests
-    raw().open = false;
+    raw().open = true;
     raw().dispatchEvent(new Event('toggle'));
   });
 });

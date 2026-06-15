@@ -35,7 +35,7 @@
   --blue: #2a5489;
   --cyan: #0a6c6e;
   --green: #357a00;
-  --teal: #0a6c6e;
+  --teal: #b03a6e; /* distinct rose for palette slot p3 (was a cyan dup); only used by --p3 */
   --magenta: #6b4870;
   --red: #c00000;
   --orange: #a84800;

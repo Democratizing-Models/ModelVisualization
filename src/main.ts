@@ -3,7 +3,7 @@ import { detectAndParse, REGISTRY } from './adapters/detect.js';
 import { renderTree } from './render/tree.js';
 import { renderInspector } from './render/inspector.js';
 import { initTheme } from './render/theme.js';
-import { clear } from './render/dom.js';
+import { clear, resetKindColors } from './render/dom.js';
 import { buildIndex, computeRoots, findNode, type Model, type SourceFormat } from './model/index.js';
 import { renderDag } from './render/dag.js';
 
@@ -71,13 +71,17 @@ function showEmpty(): void {
   searchList.replaceChildren();
   jumpTo = null;
   emptyState(treePane, 'No model loaded.');
-  emptyState(dagPane, 'No model loaded — choose a sample above or load a .hs3 file. Click any node to inspect it; selection syncs across all panes.');
+  emptyState(dagPane, 'No model loaded. Choose a sample above, or load a .hs3, .xs3, or .flatppl file. Selecting a node updates the tree, graph, and inspector together.');
   emptyState(inspectorPane, 'Select a node to inspect.');
 }
 
 function showModel(model: Model): void {
   badge.hidden = false;
   badge.textContent = FORMAT_LABEL[model.format];
+
+  // Fresh, first-seen kind→colour assignment for this model (distinct colours
+  // per kind, deterministic per render).
+  resetKindColors();
 
   // One index per model, shared by tree, dag and inspector (no per-click rebuilds).
   const index = buildIndex(model);
@@ -145,7 +149,7 @@ function load(filename: string, source: string): void {
     showModel(detectAndParse(filename, source));
   } catch (err) {
     showEmpty();
-    setStatus(`Couldn't parse "${filename}" — expected an HS3 JSON model. (${(err as Error).message})`, 'error');
+    setStatus(`Could not parse "${filename}" as a recognized model (HS3, XS3, or FlatPPL). (${(err as Error).message})`, 'error');
   }
 }
 
@@ -208,4 +212,4 @@ for (const tab of tabs) {
 }
 
 showEmpty();
-setStatus('Load an HS3 model file, or pick a bundled sample.');
+setStatus('Load a model file, or pick a bundled sample.');

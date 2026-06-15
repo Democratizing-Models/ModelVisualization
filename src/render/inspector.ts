@@ -15,8 +15,9 @@ import { summarizeValue } from './format.js';
 const RAW_ARRAY_CAP = 100;
 
 /** Remembers whether the "Raw source" section is expanded, so it stays open as
- * the user clicks between nodes (the inspector rebuilds on each selection). */
-let rawSourceOpen = false;
+ * the user clicks between nodes (the inspector rebuilds on each selection).
+ * Open by default; the user can collapse it and the choice persists. */
+let rawSourceOpen = true;
 
 /** Per-model index of diagnostics by node id, built once and reused across the
  * many per-click inspector rebuilds (was a full O(D) scan on every selection). */

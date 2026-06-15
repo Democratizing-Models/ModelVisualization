@@ -43,7 +43,7 @@ export function renderDag(
   onSelect: (node: ModelNode) => void,
 ): DagController {
   let currentFocus = focusId;
-  let hops = 2;
+  let hops = 3;
   // Set true once a pointer drag crosses the move threshold, so the trailing
   // `click` after a pan is ignored instead of selecting a node.
   let dragMoved = false;
@@ -143,14 +143,25 @@ export function renderDag(
     // Lane-offset overlapping runs and add crossing hops across the whole edge
     // set, then render. Arrowhead lands on the consumer (path end).
     const dPaths = wirePaths(pg.edges);
-    // Tint each wire by its source (the dependency it leaves): hues spread evenly
-    // round the wheel for maximum distinguishability, desaturated vs the node
-    // palette so the wires stay subtle. Sorted ids → deterministic assignment.
-    const sources = [...new Set(pg.edges.map((e) => e.to))].sort();
+    // Tint each wire by its source (the dependency it leaves). To make wires of
+    // NEARBY nodes maximally dissimilar: order sources by layout position
+    // (top→bottom, left→right) so spatially-adjacent sources are consecutive,
+    // then step the hue by the golden angle (~137.5°) — consecutive sources land
+    // far apart on the wheel rather than a small 360/N step. Lightness alternates
+    // and saturation is high so colours stay legible on light and dark
+    // backgrounds. Deterministic (layout is deterministic).
+    const pos = new Map(pg.nodes.map((n) => [n.id, n]));
+    const sources = [...new Set(pg.edges.map((e) => e.to))].sort((a, c) => {
+      const na = pos.get(a), nc = pos.get(c);
+      return (na?.y ?? 0) - (nc?.y ?? 0) || (na?.x ?? 0) - (nc?.x ?? 0) || a.localeCompare(c);
+    });
     const srcIndex = new Map(sources.map((s, i) => [s, i])); // O(1) lookup, not O(E) indexOf
+    const GOLDEN_ANGLE = 137.508;
     const strokeFor = (src: string): string => {
-      const hue = Math.round((210 + (360 * (srcIndex.get(src) ?? 0)) / sources.length) % 360);
-      return `hsl(${hue}, 38%, 62%)`;
+      const i = srcIndex.get(src) ?? 0;
+      const hue = Math.round((210 + i * GOLDEN_ANGLE) % 360);
+      const light = i % 2 === 0 ? 58 : 45; // alternate to separate neighbours; floor kept legible on the dark canvas
+      return `hsl(${hue}, 72%, ${light}%)`;
     };
     pg.edges.forEach((e, i) => {
       const path = svg('path', {

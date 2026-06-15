@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>HS3 Model Viewer</title>
-  <meta name="description" content="Interactive viewer for HS3 statistical models — explore the tree and dependency-graph structure of serialized HEP models in your browser." />
+  <title>DEMOS Model Viewer</title>
+  <meta name="description" content="Browser viewer for serialized statistical models (HS3, XS3, FlatPPL): tree, dependency graph, and node inspector. Runs client-side." />
   <meta name="theme-color" content="#1a1b26" />
   <meta property="og:type" content="website" />
-  <meta property="og:title" content="HS3 Model Viewer" />
-  <meta property="og:description" content="Interactive viewer for HS3 statistical model structure — tree, dependency graph, and node inspector." />
+  <meta property="og:title" content="DEMOS Model Viewer" />
+  <meta property="og:description" content="Browser viewer for serialized statistical models (HS3, XS3, FlatPPL): tree, dependency graph, and node inspector." />
   <meta property="og:url" content="https://democratizing-models.github.io/ModelVisualization/" />
   <meta name="twitter:card" content="summary" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%231a1b26'/%3E%3Ccircle cx='5' cy='5' r='1.8' fill='%237aa2f7'/%3E%3Ccircle cx='11' cy='8' r='1.8' fill='%239ece6a'/%3E%3Ccircle cx='6' cy='11' r='1.8' fill='%23bb9af7'/%3E%3Cpath d='M5 5L11 8M11 8L6 11' stroke='%23565f89' stroke-width='1'/%3E%3C/svg%3E" />
@@ -17,13 +17,13 @@
 <body>
   <a class="skip-link" href="#dag-pane">Skip to graph</a>
   <header class="topbar">
-    <h1>HS3 Model Viewer</h1>
+    <h1>DEMOS Model Viewer</h1>
     <div class="controls">
       <label class="file-label">
         Load model
-        <input id="file-input" type="file" accept=".hs3,application/json" aria-describedby="file-hint" />
+        <input id="file-input" type="file" accept=".hs3,.xs3,.flatppl,application/json" aria-describedby="file-hint" />
       </label>
-      <span id="file-hint" class="visually-hidden">Accepts HS3 model files (.hs3 / JSON)</span>
+      <span id="file-hint" class="visually-hidden">Accepts model files: .hs3, .xs3, or .flatppl</span>
       <select id="sample-select" aria-label="Load bundled sample">
         <option value="">Load a sample…</option>
         <!-- options populated from the format registry in main.ts -->

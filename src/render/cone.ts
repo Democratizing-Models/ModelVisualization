@@ -10,9 +10,11 @@
  *
  * `depth` is signed by the direction of the FIRST hop on the path from the
  * focus (<0 reached via a dependency, >0 via a dependent); deeper nodes inherit
- * their branch's sign. The cone follows dependency/dependent edges only
- * (`input`/`call` roles); `output`-role adjacency is out of scope for v1 and is
- * not counted in `hidden`. When `nodeCap` truncates, nearer nodes are kept.
+ * their branch's sign. The cone follows the index's dependency/dependent
+ * adjacency, which now includes data flow: `buildIndex` records each `output`
+ * edge as a reversed dependency (product depends on producer), so producer↔
+ * product relationships participate in the cone. When `nodeCap` truncates,
+ * nearer nodes are kept.
  */
 import {
   dependencyEdges,

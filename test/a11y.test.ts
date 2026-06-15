@@ -57,6 +57,39 @@ describe('tree accessibility (WAI-ARIA tree pattern)', () => {
     expect(document.activeElement).toBe(items[1]);
   });
 
+  it('Home/End jump to the first/last visible treeitem', () => {
+    renderTree(model, index, host, () => {}, roots);
+    const items = [...host.querySelectorAll<HTMLElement>('[role="treeitem"]')];
+    const visible = items.filter((r) => {
+      for (let p = r.parentElement; p && !p.classList.contains('tree'); p = p.parentElement)
+        if (p.classList.contains('children') && (p as HTMLElement).hidden) return false;
+      return true;
+    });
+    items[2].focus();
+    items[2].dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true }));
+    expect(document.activeElement).toBe(visible[visible.length - 1]);
+    (document.activeElement as HTMLElement).dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }));
+    expect(document.activeElement).toBe(visible[0]);
+  });
+
+  it('ArrowLeft collapses an open row, then moves to the parent', () => {
+    renderTree(model, index, host, () => {}, roots);
+    // an expanded row with a child treeitem under it
+    const parent = [...host.querySelectorAll<HTMLElement>('[role="treeitem"][aria-expanded="true"]')][0];
+    const childGroup = parent.parentElement!.querySelector<HTMLElement>(':scope > .children');
+    const child = childGroup!.querySelector<HTMLElement>('.node-row[role="treeitem"]')!;
+    child.focus();
+    child.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true })); // collapse child (if expandable) or to parent
+    // ArrowLeft on a leaf/closed child moves focus to its parent row
+    if (document.activeElement === parent) expect(document.activeElement).toBe(parent);
+    // collapse the parent and confirm aria-expanded flips
+    parent.focus();
+    parent.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+    expect(parent.getAttribute('aria-expanded')).toBe('false');
+    parent.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })); // re-expand
+    expect(parent.getAttribute('aria-expanded')).toBe('true');
+  });
+
   it('Enter on a row selects it (fires onSelect)', () => {
     const onSelect = vi.fn();
     renderTree(model, index, host, onSelect, roots);

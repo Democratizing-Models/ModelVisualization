@@ -33,14 +33,28 @@ export function clear(node: Element): void {
 
 const PALETTE = 8;
 
-/** Stable colour for a node kind: hash the kind string into the theme-aware
- *  palette (--p0..--p7), so any format's kinds get distinct colours with no
- *  per-kind config. `unknown` is muted. Returns a CSS value (a `var(...)`). */
+// Colour for a node kind: assign palette slots (--p0..--p7) in FIRST-SEEN order
+// rather than hashing, so the distinct kinds within one model get distinct
+// colours (a hash collides different kinds onto the same slot — the bug that
+// made dense models like best-estimation look samey). Reset per model via
+// resetKindColors() so assignment is fresh and deterministic for each render.
+const kindSlot = new Map<string, number>();
+
+/** Clear the kind→colour assignment; call once before rendering a new model. */
+export function resetKindColors(): void {
+  kindSlot.clear();
+}
+
+/** Theme-aware colour for a node kind. `unknown` is muted. Returns a CSS
+ *  `var(...)`. Format-agnostic: any kind string gets a slot on first sight. */
 export function kindColor(kind: string): string {
   if (kind === 'unknown') return 'var(--fg-dim)';
-  let h = 0;
-  for (let i = 0; i < kind.length; i++) h = (h * 31 + kind.charCodeAt(i)) | 0;
-  return `var(--p${((h % PALETTE) + PALETTE) % PALETTE})`;
+  let slot = kindSlot.get(kind);
+  if (slot === undefined) {
+    slot = kindSlot.size % PALETTE;
+    kindSlot.set(kind, slot);
+  }
+  return `var(--p${slot})`;
 }
 
 /** A small colored chip labeling a node kind. */

@@ -15,7 +15,8 @@ function apply(theme: Theme): void {
   document.documentElement.dataset.theme = theme;
 }
 
-/** Apply the saved/system theme and wire the toggle button. */
+/** Apply the saved/system theme and wire the toggle button. Defaults to — and
+ *  live-follows — the OS colour scheme until the user makes an explicit choice. */
 export function initTheme(button: HTMLButtonElement): void {
   let theme: Theme = stored() ?? systemPreference();
 
@@ -30,6 +31,15 @@ export function initTheme(button: HTMLButtonElement): void {
   };
 
   render();
+
+  // Follow the OS theme as long as the user hasn't picked one explicitly.
+  globalThis.matchMedia?.('(prefers-color-scheme: light)')
+    .addEventListener?.('change', (e) => {
+      if (stored()) return; // an explicit choice wins over the system default
+      theme = e.matches ? 'light' : 'dark';
+      render();
+    });
+
   button.addEventListener('click', () => {
     theme = theme === 'dark' ? 'light' : 'dark';
     globalThis.localStorage?.setItem(KEY, theme);

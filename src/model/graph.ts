@@ -36,7 +36,16 @@ export function buildIndex(model: Model): ModelIndex {
   const outputs = new Map<string, ModelEdge[]>();
   for (const e of model.edges) {
     if (e.role === 'output') {
+      // An output edge producer→product is kept verbatim for the inspector's
+      // "Produces" view, AND contributes a dependency the other way round: the
+      // product depends on its producer (to obtain the product you must run the
+      // producer). Storing the reversed edge in deps/dependents lets the cone,
+      // layout, and root logic traverse data-flow uniformly (producer above
+      // product), instead of treating outputs as a dead end.
       push(outputs, e.from, e);
+      const rev: ModelEdge = { from: e.to, to: e.from, role: e.role, port: e.port };
+      push(deps, rev.from, rev);
+      push(dependents, rev.to, rev);
     } else {
       push(deps, e.from, e);
       push(dependents, e.to, e);
@@ -56,11 +65,13 @@ export const outputEdges = (index: ModelIndex, id: string): ModelEdge[] => index
  * nodes the hint omits.
  */
 export function computeRoots(model: Model, index: ModelIndex): ModelNode[] {
-  // A node is structural-root if nothing *else* depends on it; a self-edge
-  // (a→a) puts it in `dependents` but must not disqualify it.
+  // A node is structural-root if nothing *else* depends on it. A self-edge
+  // (a→a) must not disqualify it; nor must a reversed `output` edge — a pure
+  // producer (e.g. an XS3 workspace that only emits outputs) should still root
+  // the forest rather than be buried under what it produces.
   const structural = model.nodes.filter((n) => {
     const back = index.dependents.get(n.id);
-    return !back || back.every((e) => e.from === n.id);
+    return !back || back.every((e) => e.from === n.id || e.role === 'output');
   });
   const base = structural.length > 0 ? structural : model.nodes;
 

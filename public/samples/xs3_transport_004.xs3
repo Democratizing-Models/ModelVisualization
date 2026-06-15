@@ -1,0 +1,107 @@
+- preamble:
+    type: NampedTuple
+    values: {"identifier": preamble,
+             "XS3_version": 0.0.1-dev.1,
+   	     "author": "DEMOS-laser + Hans Peter",
+             "date": 2026-06-11,
+             "description": Example-04 stocastic transport model.}
+
+- data:
+    identifier: data
+    type: data
+    values: [3.81359, 2.91195, 3.20085 , 3.09185 ,
+             3.34005, 4.96067, 0.842412, 2.34128 ,
+             3.06224, 2.59162, 2.5017  , 5.39892 ,
+             1.19806, 1.60855, 1.44647 , 0.771489,
+             0.26153, 1.56184, 0.561171, 4.4823]
+    description: data.
+
+- parameters:
+    identifier: parameters
+    type: array(real)
+    values: [0.1,0.3,1.1,0.2]
+    description: Transport parameters: a=0.1,b=0.3,mu=1.1,sigma=0.2.
+
+- gun
+    type: samplable
+    identifier: gun_dist
+    weighting_type: gun_dist_weighting_call
+    sampling_type: gun_dist_sampling_call
+    description: Represents a Gun/Normal(mu,sigma) = $1./\sqrt(2.*\pi*sigma^2.)\exp((x-mu)^2/(2*\sigma)$ distribution.
+
+- gun_dist_weighting_call
+    type: weighting_call
+    identifier: gun_dist_weighting_call
+    inputs: {"x":(real), "mu":(real), "sigma":(real)}
+    outputs: {"weight": (real)}
+    description: Weighting call for a Gun distribution. Evaluating $1./\sqrt(2.*\pi*sigma^2.)\exp((x-mu)^2/(2*\sigma)$ for samples x.
+
+- gun_dist_sampling_call
+    type: sampling_call
+    identifier: gun_dist_sampling_call
+    inputs: {"rng": (random_state), "mu":(real), "sigma":(real)}
+    outputs: {"sample": (real)}
+    description: Sampling call for a Gun distribution.
+
+- transport:
+    identifier: transport
+    type: function
+    call_type: transport_call
+    description: Mimics heavy transport function (container/engine).
+
+- transport_call:
+    identifier: transport_call
+    type: function_call
+    inputs: {"x": x,
+             "parameter": p}
+    outputs: {"y": y}
+    description: Calling transport function.
+
+- post:
+    identifier: post
+    type: function
+    call_type: post_call
+    description: Mimics post-processing function.
+
+- post_call:
+    identifier: post_call
+    type: function_call
+    inputs: {"y": y}
+    outputs: {"z": z}
+    description: Calling post function.
+
+- bins:
+    identifier: bins
+    type: array(real)
+    values: [ 0.        ,  0.2020202 ,  0.4040404 ,  0.60606061,  0.80808081,
+              1.01010101,  1.21212121,  1.41414141,  1.61616162,  1.81818182,
+              2.02020202,  2.22222222,  2.42424242,  2.62626263,  2.82828283,
+              3.03030303,  3.23232323,  3.43434343,  3.63636364,  3.83838384,
+              4.04040404,  4.24242424,  4.44444444,  4.64646465,  4.84848485,
+              5.05050505,  5.25252525,  5.45454545,  5.65656566,  5.85858586,
+              6.06060606,  6.26262626,  6.46464646,  6.66666667,  6.86868687,
+              7.07070707,  7.27272727,  7.47474747,  7.67676768,  7.87878788,
+              8.08080808,  8.28282828,  8.48484848,  8.68686869,  8.88888889,
+              9.09090909,  9.29292929,  9.49494949,  9.6969697 ,  9.8989899 ,
+             10.1010101 , 10.3030303 , 10.50505051, 10.70707071, 10.90909091,
+             11.11111111, 11.31313131, 11.51515152, 11.71717172, 11.91919192,
+             12.12121212, 12.32323232, 12.52525253, 12.72727273, 12.92929293,
+             13.13131313, 13.33333333, 13.53535354, 13.73737374, 13.93939394,
+             14.14141414, 14.34343434, 14.54545455, 14.74747475, 14.94949495,
+             15.15151515, 15.35353535, 15.55555556, 15.75757576, 15.95959596,
+             16.16161616, 16.36363636, 16.56565657, 16.76767677, 16.96969697,
+             17.17171717, 17.37373737, 17.57575758, 17.77777778, 17.97979798,
+             18.18181818, 18.38383838, 18.58585859, 18.78787879, 18.98989899,
+             19.19191919, 19.39393939, 19.5959596 , 19.7979798 , 20.        ]
+    description: bins used for histrogram.
+
+- analysis_ws:
+    identifier: analysis_ws
+    type: workspace
+    outputs: {"x": x,
+              "y": y,
+              "z": z}
+    description: Performs a example-04 stocastic transport model analysis chain.
+
+- comment:
+    description: This is only a minimilastic example.

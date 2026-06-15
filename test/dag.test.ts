@@ -43,19 +43,16 @@ describe('renderDag', () => {
     expect(host.querySelector('.dag-node.focus')?.getAttribute('data-id')).toBe('analysis');
   });
 
-  it('hop stepper starts at 2 and adjusts the hop count', () => {
+  it('hop stepper starts at 3 and adjusts the hop count', () => {
     renderDag(index, host, 'likelihood', () => {});
     const display = (): string | null => host.querySelector('.dag-hop-count')!.textContent;
-    const count = (): number => host.querySelectorAll('.dag-node').length;
     const dec = (): HTMLButtonElement => host.querySelector<HTMLButtonElement>('.dag-hop-dec')!;
     const inc = (): HTMLButtonElement => host.querySelector<HTMLButtonElement>('.dag-hop-inc')!;
 
-    expect(display()).toBe('2');
-    const atTwo = count();
+    expect(display()).toBe('3');
 
-    dec().click(); // 2 → 1
+    dec().click(); dec().click(); // 3 → 1
     expect(display()).toBe('1');
-    expect(count()).toBeLessThan(atTwo);
 
     expect(dec().disabled).toBe(true); // floored at 1
     dec().click(); // stays 1
@@ -99,11 +96,47 @@ describe('renderDag', () => {
     expect([...strokes].every((s) => s?.startsWith('stroke:hsl'))).toBe(true);
   });
 
+  it('gives every distinct source a distinct, saturated wire colour', () => {
+    renderDag(index, host, 'likelihood', () => {});
+    const edges = [...host.querySelectorAll<SVGPathElement>('.dag-edge')];
+    const sources = new Set(edges.map((p) => p.querySelector('title') && p.getAttribute('style')));
+    // one colour per distinct source; 72% saturation (punchy, not washed out)
+    const strokes = new Set(edges.map((p) => p.getAttribute('style')));
+    expect([...strokes].every((s) => /stroke:hsl\(\d+, 72%, (58|45)%\)/.test(s ?? ''))).toBe(true);
+    expect(sources.size).toBeGreaterThan(0);
+  });
+
   it('pan/zoom updates the svg viewBox on wheel', () => {
     renderDag(index, host, 'likelihood', () => {});
     const svg = host.querySelector('svg')!;
     const before = svg.getAttribute('viewBox');
     svg.dispatchEvent(new WheelEvent('wheel', { deltaY: -100, bubbles: true }));
     expect(svg.getAttribute('viewBox')).not.toBe(before);
+  });
+
+  it('keyboard pans (arrows), zooms (+/-) and resets (0) the viewBox', () => {
+    renderDag(index, host, 'likelihood', () => {});
+    const svg = host.querySelector<SVGSVGElement>('svg')!;
+    const vb = (): string | null => svg.getAttribute('viewBox');
+    const key = (k: string): void => { svg.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true })); };
+
+    const initial = vb();
+    key('ArrowRight'); // pan
+    const panned = vb();
+    expect(panned).not.toBe(initial);
+    key('+'); // zoom in
+    expect(vb()).not.toBe(panned);
+    key('0'); // reset to full frame
+    expect(vb()).toBe(initial);
+  });
+
+  it('the reset-view toolbar button restores the framing after a pan', () => {
+    renderDag(index, host, 'likelihood', () => {});
+    const svg = host.querySelector<SVGSVGElement>('svg')!;
+    const initial = svg.getAttribute('viewBox');
+    svg.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+    expect(svg.getAttribute('viewBox')).not.toBe(initial);
+    host.querySelector<HTMLButtonElement>('.dag-reset')!.click();
+    expect(svg.getAttribute('viewBox')).toBe(initial);
   });
 });

@@ -1,7 +1,7 @@
 {
   "name": "model-visualization",
   "version": "0.1.0",
-  "description": "Semantic frontend for visualizing DAG-structured models, with pluggable format adapters",
+  "description": "Browser viewer for serialized statistical models (HS3, XS3, FlatPPL)",
   "type": "module",
   "license": "MIT",
   "author": "DEMOS Consortium",
@@ -28,6 +28,7 @@
   },
   "devDependencies": {
     "@types/node": "^25.9.1",
+    "@vitest/coverage-v8": "^4.1.8",
     "jsdom": "^29.1.1",
     "typescript": "^6.0.3",
     "vite": "^8.0.15",

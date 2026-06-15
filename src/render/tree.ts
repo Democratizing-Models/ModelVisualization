@@ -24,6 +24,10 @@ import { summarizeValue } from './format.js';
 
 /** Max children rendered per expand (high-fan-out guard; rest via search). */
 const CHILD_CAP = 200;
+/** Models at/below this node count auto-expand fully; larger stay lazy. */
+const DEEP_EXPAND_MAX_NODES = 60;
+/** Cap on total auto-opened rows (guards a densely-shared small DAG). */
+const AUTO_OPEN_BUDGET = 400;
 
 export interface TreeController {
   /** Highlight the primary row for `id` (and scroll to it) if rendered. */
@@ -47,6 +51,13 @@ export function renderTree(
   // of expanded nodes changes, not on every keystroke.
   let visibleCache: HTMLElement[] | null = null;
   const invalidateVisible = (): void => { visibleCache = null; };
+
+  // Small models auto-expand fully (so the whole structure is visible at a
+  // glance, not hidden behind collapsed carets); large ones expand only the
+  // root's first level and stay lazy. A budget caps the total auto-opened rows
+  // so a small-but-densely-shared DAG can't expand combinatorially.
+  const deepExpand = model.nodes.length <= DEEP_EXPAND_MAX_NODES;
+  let autoOpenBudget = AUTO_OPEN_BUDGET;
 
   const setTabStop = (row: HTMLElement): void => {
     if (tabStop === row) return;
@@ -122,10 +133,13 @@ export function renderTree(
       // Cap how many children render at once so a single high-fan-out node can't
       // build thousands of rows synchronously; the rest are reachable via search.
       let rendered = 0;
+      // Propagate auto-expand into the subtree only for small (deep-expand)
+      // models; large models open just the root's first level.
+      const childAuto = autoExpand && deepExpand;
       for (const dep of deps) {
         if (rendered >= CHILD_CAP) break;
         const target = index.byId.get(dep.to);
-        if (target) { childWrap.append(buildNode(target, dep, next, false, level + 1)); rendered++; }
+        if (target) { childWrap.append(buildNode(target, dep, next, childAuto, level + 1)); rendered++; }
       }
       for (const out of outs) {
         if (rendered >= CHILD_CAP) break;
@@ -155,7 +169,7 @@ export function renderTree(
       wrap.append(el('div', { class: 'values' }, [summarizeValue(node.values)]));
     }
     wrap.append(childWrap);
-    if (autoExpand && expandable) setOpen(true);
+    if (autoExpand && expandable && autoOpenBudget > 0) { autoOpenBudget--; setOpen(true); }
     return wrap;
   };
 
@@ -197,16 +211,14 @@ export function renderTree(
     node: ModelNode; expandable: boolean; isOpen: () => boolean; setOpen: (open: boolean) => void;
   }>();
 
-  // Build the forest. Auto-expand each root's first level (no synthetic clicks)
-  // — but only when there are few roots: a degenerate model where computeRoots
-  // falls back to ALL nodes must not build thousands of rows + their children
-  // synchronously. Cap the rendered root count and note any overflow.
+  // Build the forest. Roots start expanded; how deep that goes is governed by
+  // `deepExpand` (full for small models, first-level only for large) and the
+  // `autoOpenBudget`. Cap the rendered root count so a degenerate model where
+  // computeRoots falls back to ALL nodes can't build thousands of rows at once.
   const ROOT_CAP = 200;
-  const AUTO_EXPAND_MAX = 24;
-  const autoExpand = roots.length <= AUTO_EXPAND_MAX;
   const forest = el('div', { class: 'tree', role: 'tree', 'aria-label': 'Model tree' });
   for (const root of roots.slice(0, ROOT_CAP)) {
-    forest.append(buildNode(root, null, new Set(), autoExpand, 1));
+    forest.append(buildNode(root, null, new Set(), true, 1));
   }
   host.append(forest);
   if (roots.length > ROOT_CAP) {
