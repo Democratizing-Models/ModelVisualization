@@ -36,7 +36,7 @@ export function offsetOverlaps(polys: Pt[][]): void {
       else laneEnd[assigned] = s.x1;
       return assigned;
     });
-    const lanes = Math.max(...lane) + 1;
+    const lanes = lane.reduce((m, v) => Math.max(m, v), 0) + 1;
     if (lanes < 2) continue;
     segs.forEach((s, idx) => {
       const off = (lane[idx] - (lanes - 1) / 2) * LANE_GAP;

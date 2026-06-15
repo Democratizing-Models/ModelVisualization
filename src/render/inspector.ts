@@ -18,6 +18,23 @@ const RAW_ARRAY_CAP = 100;
  * the user clicks between nodes (the inspector rebuilds on each selection). */
 let rawSourceOpen = false;
 
+/** Per-model index of diagnostics by node id, built once and reused across the
+ * many per-click inspector rebuilds (was a full O(D) scan on every selection). */
+const diagsByModel = new WeakMap<Model, Map<string, Model['diagnostics']>>();
+function diagnosticsFor(model: Model, nodeId: string): Model['diagnostics'] {
+  let byNode = diagsByModel.get(model);
+  if (!byNode) {
+    byNode = new Map();
+    for (const d of model.diagnostics) {
+      if (d.nodeId === undefined) continue;
+      const list = byNode.get(d.nodeId);
+      if (list) list.push(d); else byNode.set(d.nodeId, [d]);
+    }
+    diagsByModel.set(model, byNode);
+  }
+  return byNode.get(nodeId) ?? [];
+}
+
 export function renderInspector(
   model: Model,
   index: ModelIndex,
@@ -63,7 +80,7 @@ export function renderInspector(
   edgeList('Produces', outputEdges(index, node.id), 'to');
   edgeList('Used by', dependentEdges(index, node.id), 'from');
 
-  const diags = model.diagnostics.filter((d) => d.nodeId === node.id);
+  const diags = diagnosticsFor(model, node.id);
   if (diags.length > 0) {
     const ul = el('ul', { class: 'insp-diags' });
     for (const d of diags) ul.append(el('li', { dataset: { level: d.level } }, [d.msg]));

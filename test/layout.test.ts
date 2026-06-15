@@ -6,7 +6,7 @@ import { extractCone } from '../src/render/cone.js';
 import { layoutDag } from '../src/render/layout.js';
 import { fixture } from './helpers.js';
 
-const model = fromHs3Json(fixture('hs3_gaussian.json'));
+const model = fromHs3Json(fixture('hs3_gaussian.hs3'));
 const index = buildIndex(model);
 
 function pos(focus: string, hops = 2) {

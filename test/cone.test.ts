@@ -5,7 +5,7 @@ import { buildIndex, type Model } from '../src/model/index.js';
 import { extractCone } from '../src/render/cone.js';
 import { fixture } from './helpers.js';
 
-const model = fromHs3Json(fixture('hs3_gaussian.json'));
+const model = fromHs3Json(fixture('hs3_gaussian.hs3'));
 const index = buildIndex(model);
 
 describe('extractCone', () => {

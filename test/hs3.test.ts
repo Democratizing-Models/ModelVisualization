@@ -5,7 +5,7 @@ import { computeRoots, buildIndex } from '../src/model/index.js';
 import { fixture, hasEdge, errors } from './helpers.js';
 
 describe('HS3 adapter', () => {
-  const model = fromHs3Json(fixture('hs3_gaussian.json'));
+  const model = fromHs3Json(fixture('hs3_gaussian.hs3'));
   const byId = new Map(model.nodes.map((n) => [n.id, n]));
 
   it('lowers each section item to a node keyed by name (kind = section)', () => {

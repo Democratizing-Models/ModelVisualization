@@ -22,14 +22,15 @@ describe('Critical: summarizeArray must not spread large arrays', () => {
 
 describe('High: format dispatch is registry-scored', () => {
   it('routes a data-only HS3 file to the HS3 adapter', () => {
-    const m = detectAndParse('m.json', JSON.stringify({ metadata: { hs3_version: '0.2' }, data: [{ name: 'd', type: 'unbinned' }] }));
+    const m = detectAndParse('m.hs3', JSON.stringify({ metadata: { hs3_version: '0.2' }, data: [{ name: 'd', type: 'unbinned' }] }));
     expect(m.format).toBe('hs3');
   });
 
-  it('exposes label + sample for every registered format (single source for the UI)', () => {
+  it('exposes label + samples for every registered format (single source for the UI)', () => {
     for (const d of REGISTRY) {
       expect(d.label).toBeTruthy();
-      expect(d.sample.path).toMatch(/^samples\//);
+      expect(d.samples.length).toBeGreaterThan(0);
+      for (const s of d.samples) expect(s.path).toMatch(/^samples\//);
     }
   });
 });

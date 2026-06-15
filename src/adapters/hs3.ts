@@ -109,6 +109,35 @@ export function fromHs3Doc(doc: Record<string, unknown>): Model {
   return b.build();
 }
 
+/** Keys that, as own properties, can subvert a prototype if an object is later
+ *  key-merged. Stripped from untrusted subtrees on ingest. */
+const DANGEROUS_KEYS: ReadonlySet<string> = new Set(['__proto__', 'constructor', 'prototype']);
+
+/** Deep-copy a JSON value, dropping dangerous own keys. Iterative (no recursion)
+ *  so deeply-nested untrusted input cannot overflow the stack. */
+function sanitize(value: unknown): unknown {
+  if (value === null || typeof value !== 'object') return value;
+  const clone: unknown = Array.isArray(value) ? [] : Object.create(null);
+  const stack: Array<{ src: Record<string, unknown> | unknown[]; dst: Record<string, unknown> | unknown[] }> = [
+    { src: value as Record<string, unknown> | unknown[], dst: clone as Record<string, unknown> | unknown[] },
+  ];
+  while (stack.length > 0) {
+    const { src, dst } = stack.pop()!;
+    for (const key of Object.keys(src)) {
+      if (DANGEROUS_KEYS.has(key)) continue;
+      const v = (src as Record<string, unknown>)[key];
+      if (v !== null && typeof v === 'object') {
+        const child: Record<string, unknown> | unknown[] = Array.isArray(v) ? [] : Object.create(null);
+        (dst as Record<string, unknown>)[key] = child;
+        stack.push({ src: v as Record<string, unknown> | unknown[], dst: child });
+      } else {
+        (dst as Record<string, unknown>)[key] = v;
+      }
+    }
+  }
+  return clone;
+}
+
 function readMetadata(b: ModelBuilder, doc: Record<string, unknown>): void {
   const meta = doc.metadata;
   if (!meta || typeof meta !== 'object') {
@@ -118,8 +147,12 @@ function readMetadata(b: ModelBuilder, doc: Record<string, unknown>): void {
     });
     return;
   }
-  Object.assign(b.meta, meta as Record<string, unknown>);
-  if (doc.misc !== undefined) b.meta.misc = doc.misc;
+  // `b.meta` is null-proto, but the assigned values are untrusted subtrees that
+  // still carry Object.prototype. Deep-sanitize them so a `__proto__`/
+  // `constructor`/`prototype` key buried in metadata can never become a
+  // pollution sink if a downstream consumer ever key-merges these values.
+  Object.assign(b.meta, sanitize(meta) as Record<string, unknown>);
+  if (doc.misc !== undefined) b.meta.misc = sanitize(doc.misc);
   if (!('hs3_version' in (meta as Record<string, unknown>))) {
     // `hs3_version` is a required field inside `metadata` (HS3 2.8_metadata).
     b.error('HS3 metadata is missing the required `hs3_version`', { code: 'hs3-version-missing' });

@@ -5,7 +5,7 @@ import { buildIndex, type ModelNode } from '../src/model/index.js';
 import { renderDag } from '../src/render/dag.js';
 import { fixture } from './helpers.js';
 
-const model = fromHs3Json(fixture('hs3_gaussian.json'));
+const model = fromHs3Json(fixture('hs3_gaussian.hs3'));
 const index = buildIndex(model);
 
 describe('renderDag', () => {
@@ -90,11 +90,13 @@ describe('renderDag', () => {
 
   it('tints wires by source (distinct stroke colours)', () => {
     renderDag(index, host, 'likelihood', () => {});
+    // Read the raw style attribute, not p.style.stroke — jsdom's CSSOM
+    // canonicalizes hsl() to rgb() on read, but the emitted markup is hsl().
     const strokes = new Set(
-      [...host.querySelectorAll<SVGPathElement>('.dag-edge')].map((p) => p.style.stroke),
+      [...host.querySelectorAll<SVGPathElement>('.dag-edge')].map((p) => p.getAttribute('style')),
     );
     expect(strokes.size).toBeGreaterThan(1); // multiple source nodes → multiple colours
-    expect([...strokes].every((s) => s.startsWith('hsl'))).toBe(true);
+    expect([...strokes].every((s) => s?.startsWith('stroke:hsl'))).toBe(true);
   });
 
   it('pan/zoom updates the svg viewBox on wheel', () => {

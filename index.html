@@ -4,33 +4,50 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>HS3 Model Viewer</title>
+  <meta name="description" content="Interactive viewer for HS3 statistical models — explore the tree and dependency-graph structure of serialized HEP models in your browser." />
+  <meta name="theme-color" content="#1a1b26" />
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="HS3 Model Viewer" />
+  <meta property="og:description" content="Interactive viewer for HS3 statistical model structure — tree, dependency graph, and node inspector." />
+  <meta property="og:url" content="https://democratizing-models.github.io/ModelVisualization/" />
+  <meta name="twitter:card" content="summary" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%231a1b26'/%3E%3Ccircle cx='5' cy='5' r='1.8' fill='%237aa2f7'/%3E%3Ccircle cx='11' cy='8' r='1.8' fill='%239ece6a'/%3E%3Ccircle cx='6' cy='11' r='1.8' fill='%23bb9af7'/%3E%3Cpath d='M5 5L11 8M11 8L6 11' stroke='%23565f89' stroke-width='1'/%3E%3C/svg%3E" />
   <link rel="stylesheet" href="/src/styles.css" />
 </head>
 <body>
+  <a class="skip-link" href="#dag-pane">Skip to graph</a>
   <header class="topbar">
     <h1>HS3 Model Viewer</h1>
     <div class="controls">
       <label class="file-label">
         Load model
-        <input id="file-input" type="file" accept=".json,application/json" />
+        <input id="file-input" type="file" accept=".hs3,application/json" aria-describedby="file-hint" />
       </label>
+      <span id="file-hint" class="visually-hidden">Accepts HS3 model files (.hs3 / JSON)</span>
       <select id="sample-select" aria-label="Load bundled sample">
         <option value="">Load a sample…</option>
         <!-- options populated from the format registry in main.ts -->
       </select>
-      <span id="format-badge" class="badge" hidden></span>
+      <input id="node-search" type="search" placeholder="Find node…" aria-label="Find a node by name or id" list="node-search-list" disabled />
+      <datalist id="node-search-list"></datalist>
+      <span id="format-badge" class="badge" hidden aria-live="polite"></span>
       <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Toggle theme">☾</button>
     </div>
   </header>
 
-  <main class="layout">
-    <section id="tree-pane" class="tree-pane" aria-label="Model tree"></section>
-    <section id="dag-pane" class="dag-pane" aria-label="Dependency graph"></section>
-    <aside id="inspector-pane" class="inspector-pane" aria-label="Node inspector"></aside>
+  <nav class="pane-tabs" role="tablist" aria-label="View panes">
+    <button class="pane-tab" role="tab" type="button" data-pane="tree" aria-controls="tree-pane" aria-selected="true">Tree</button>
+    <button class="pane-tab" role="tab" type="button" data-pane="dag" aria-controls="dag-pane" aria-selected="false">Graph</button>
+    <button class="pane-tab" role="tab" type="button" data-pane="inspector" aria-controls="inspector-pane" aria-selected="false">Inspector</button>
+  </nav>
+
+  <main class="layout" data-active-pane="tree">
+    <section id="tree-pane" class="tree-pane" role="tabpanel" aria-label="Model tree"></section>
+    <section id="dag-pane" class="dag-pane" role="tabpanel" aria-label="Dependency graph"></section>
+    <aside id="inspector-pane" class="inspector-pane" role="tabpanel" aria-label="Node inspector"></aside>
   </main>
 
-  <div id="status" class="status" role="status"></div>
+  <div id="status" class="status" role="status" aria-live="polite"></div>
 
   <script type="module" src="/src/main.ts"></script>
 </body>

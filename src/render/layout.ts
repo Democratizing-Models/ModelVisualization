@@ -70,12 +70,13 @@ export function layoutDag(sub: Subgraph): PositionedGraph {
   // top with a long edge crossing the rows between.
   for (const n of sub.nodes) {
     if (outAdj.get(n.id)!.length === 0 && depAdj.get(n.id)!.length > 0) {
-      const nearest = Math.min(...depAdj.get(n.id)!.map((d) => layer.get(d)!));
+      const nearest = depAdj.get(n.id)!.reduce((m, d) => Math.min(m, layer.get(d)!), Infinity);
       layer.set(n.id, Math.max(0, nearest - 1));
     }
   }
 
-  const maxLayer = Math.max(0, ...[...layer.values()]);
+  let maxLayer = 0;
+  for (const v of layer.values()) if (v > maxLayer) maxLayer = v;
   const layers: string[][] = Array.from({ length: maxLayer + 1 }, () => []);
   for (const n of sub.nodes) layers[layer.get(n.id)!].push(n.id);
   for (const ids of layers) ids.sort((a, b) => a.localeCompare(b)); // deterministic seed
@@ -123,7 +124,9 @@ export function layoutDag(sub: Subgraph): PositionedGraph {
   }
 
   // Normalise so the leftmost node's left edge sits at PAD.
-  const minC = Math.min(...[...cx.values()]);
+  let minC = Infinity;
+  for (const v of cx.values()) if (v < minC) minC = v;
+  if (!Number.isFinite(minC)) minC = 0;
   const dx = PAD + NODE_W / 2 - minC;
   for (const [id, v] of cx) cx.set(id, v + dx);
 
@@ -138,8 +141,9 @@ export function layoutDag(sub: Subgraph): PositionedGraph {
     isFocus: n.id === sub.focusId, hidden: sub.hidden.get(n.id) ?? 0,
   }));
 
-  const width = Math.max(...nodes.map((n) => n.x + n.w), NODE_W) + PAD;
-  const height = Math.max(...nodes.map((n) => n.y + n.h), NODE_H) + PAD;
+  // reduce (not Math.max(...spread)) so a large node count can't blow the arg limit.
+  const width = nodes.reduce((m, n) => Math.max(m, n.x + n.w), NODE_W) + PAD;
+  const height = nodes.reduce((m, n) => Math.max(m, n.y + n.h), NODE_H) + PAD;
 
   // Attach each wire near its OTHER end's x, clamped to the MIDDLE THIRD of the
   // node edge and spaced to avoid overlap (order preserved). A wire from a source

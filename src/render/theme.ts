@@ -21,9 +21,12 @@ export function initTheme(button: HTMLButtonElement): void {
 
   const render = (): void => {
     apply(theme);
-    button.textContent = theme === 'dark' ? '☾' : '☀';
-    button.setAttribute('aria-label', `Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`);
-    button.title = `Theme: ${theme}`;
+    const target = theme === 'dark' ? 'light' : 'dark';
+    // Icon and label both signal the ACTION (the theme you'll switch TO), so the
+    // glyph and the accessible name agree: sun = "go light", moon = "go dark".
+    button.textContent = target === 'light' ? '☀' : '☾';
+    button.setAttribute('aria-label', `Switch to ${target} theme`);
+    button.title = `Switch to ${target} theme`;
   };
 
   render();

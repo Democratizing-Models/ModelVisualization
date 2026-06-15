@@ -7,7 +7,7 @@ import { renderInspector } from '../src/render/inspector.js';
 import { initTheme } from '../src/render/theme.js';
 import { fixture } from './helpers.js';
 
-const model = fromHs3Json(fixture('hs3_gaussian.json'));
+const model = fromHs3Json(fixture('hs3_gaussian.hs3'));
 const index = buildIndex(model);
 
 describe('renderTree', () => {

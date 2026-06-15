@@ -56,7 +56,12 @@ export const outputEdges = (index: ModelIndex, id: string): ModelEdge[] => index
  * nodes the hint omits.
  */
 export function computeRoots(model: Model, index: ModelIndex): ModelNode[] {
-  const structural = model.nodes.filter((n) => !index.dependents.has(n.id));
+  // A node is structural-root if nothing *else* depends on it; a self-edge
+  // (a→a) puts it in `dependents` but must not disqualify it.
+  const structural = model.nodes.filter((n) => {
+    const back = index.dependents.get(n.id);
+    return !back || back.every((e) => e.from === n.id);
+  });
   const base = structural.length > 0 ? structural : model.nodes;
 
   const hinted = model.roots.filter((id) => index.byId.has(id));

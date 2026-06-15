@@ -76,15 +76,22 @@ export function makeRouter(width: number, height: number, obstacles: Rect[]): Ro
   const clampX = (x: number): number => Math.min(cols - 1, Math.max(0, Math.round(x / grid)));
   const clampY = (y: number): number => Math.min(rows - 1, Math.max(0, Math.round(y / grid)));
 
+  // A* scratch, allocated ONCE per router and reset per route() — the grid is
+  // fixed for the whole edge set, so re-allocating these (up to MAX_CELLS*5
+  // each) per edge was the dominant cost of a redraw.
+  const NONE = 4;
+  const size = n * 5;
+  const gScore = new Float32Array(size);
+  const came = new Int32Array(size);
+  const closed = new Uint8Array(size);
+
   // Direction-aware A*: a state is (cell, entry-direction) with NONE=4 for the
   // start, so the turn penalty is EXACT and the router truly minimises corners
   // (no staircase wiggle). State id = cell * 5 + dir.
-  const NONE = 4;
   const astar = (sIdx: number, gIdx: number): number[] | null => {
-    const size = n * 5;
-    const gScore = new Float32Array(size).fill(Infinity);
-    const came = new Int32Array(size).fill(-1);
-    const closed = new Uint8Array(size);
+    gScore.fill(Infinity);
+    came.fill(-1);
+    closed.fill(0);
     const gx = gIdx % cols, gy = (gIdx / cols) | 0;
     const h = (idx: number): number => Math.abs((idx % cols) - gx) + Math.abs(((idx / cols) | 0) - gy);
     const startState = sIdx * 5 + NONE;

@@ -1,7 +1,8 @@
 /**
  * SVG DAG view. Format-agnostic: renders the layout of a cone around a focus
- * node, re-focusing on node click. Pan/zoom via the svg viewBox; node fill comes
- * from kindColor() (same palette as the tree's kind badges). No deps.
+ * node, re-focusing on node click. Pan/zoom via the svg viewBox (pointer, wheel,
+ * or keyboard); node fill comes from kindColor() (same palette as the tree's
+ * kind badges). Nodes are focusable and keyboard-operable. No deps.
  */
 import { clear, kindColor } from './dom.js';
 import { extractCone } from './cone.js';
@@ -11,6 +12,17 @@ import type { ModelNode, ModelIndex } from '../model/index.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const MIN_HOPS = 1;
+const LABEL_PAD = 8;          // text inset on each side of the node box
+const HIDDEN_BADGE_W = 22;    // space reserved for the "+N" badge when present
+const PX_PER_CHAR = 7;        // ~12px monospace glyph advance
+
+/** Truncate a label with an ellipsis so it stays within `widthPx` (the node box
+ *  never grows; the text adjusts). Monospace font → char-width estimate is exact
+ *  enough and needs no layout measurement. */
+function fitLabel(text: string, widthPx: number): string {
+  const max = Math.max(1, Math.floor(widthPx / PX_PER_CHAR));
+  return text.length > max ? `${text.slice(0, Math.max(1, max - 1))}…` : text;
+}
 
 function svg<K extends keyof SVGElementTagNameMap>(
   tag: K, attrs: Record<string, string | number> = {},
@@ -35,12 +47,23 @@ export function renderDag(
   // Set true once a pointer drag crosses the move threshold, so the trailing
   // `click` after a pan is ignored instead of selecting a node.
   let dragMoved = false;
+  // Memoise the (expensive) cone + layout + routing pipeline by focus/hops, so
+  // re-focusing a recently-seen node skips it entirely.
+  const layoutCache = new Map<string, PositionedGraph>();
+  const layoutFor = (): PositionedGraph => {
+    const key = `${currentFocus}:${hops}`;
+    let pg = layoutCache.get(key);
+    if (!pg) { pg = layoutDag(extractCone(index, currentFocus, { hops })); layoutCache.set(key, pg); }
+    return pg;
+  };
+
+  // Reset the viewBox to frame the whole graph; replaced on each draw().
+  let resetView = (): void => {};
 
   const draw = (): void => {
     clear(host);
     host.append(toolbar());
-    const pg = layoutDag(extractCone(index, currentFocus, { hops }));
-    host.append(buildSvg(pg));
+    host.append(buildSvg(layoutFor()));
   };
 
   const stepBtn = (cls: string, label: string, glyph: string, onClick: () => void): HTMLButtonElement => {
@@ -56,9 +79,13 @@ export function renderDag(
   const toolbar = (): HTMLElement => {
     const bar = document.createElement('div');
     bar.className = 'dag-toolbar';
+    bar.setAttribute('role', 'toolbar');
+    bar.setAttribute('aria-label', 'Graph controls');
 
     const stepper = document.createElement('div');
     stepper.className = 'dag-hop-stepper';
+    stepper.setAttribute('role', 'group');
+    stepper.setAttribute('aria-label', 'Hops');
 
     const lbl = document.createElement('span');
     lbl.className = 'dag-hop-label';
@@ -73,20 +100,33 @@ export function renderDag(
     count.className = 'dag-hop-count';
     count.textContent = String(hops);
     count.setAttribute('aria-live', 'polite');
+    count.setAttribute('aria-label', `${hops} hops`);
 
     const inc = stepBtn('dag-hop-inc', 'More hops', '+', () => { hops += 1; draw(); });
 
+    const reset = stepBtn('dag-reset', 'Reset view', '⌖', () => resetView());
+
     stepper.append(lbl, dec, count, inc);
-    bar.append(stepper);
+    bar.append(stepper, reset);
     return bar;
   };
 
   const buildSvg = (pg: PositionedGraph): SVGSVGElement => {
+    const focusNode = index.byId.get(currentFocus);
     const root = svg('svg', {
       class: 'dag-svg',
       viewBox: `0 0 ${pg.width} ${pg.height}`,
       preserveAspectRatio: 'xMidYMin meet',
+      role: 'application',
+      tabindex: 0,
+      'aria-label': `Dependency graph${focusNode ? ` focused on ${focusNode.blockName}` : ''}, `
+        + `${pg.nodes.length} node${pg.nodes.length === 1 ? '' : 's'}. `
+        + 'Use Tab to reach nodes, Enter to focus a node, arrow keys to pan, plus and minus to zoom.',
     });
+    root.append(svg('title'), svg('desc'));
+    (root.firstChild as SVGTitleElement).textContent = 'Dependency graph';
+    (root.lastChild as SVGDescElement).textContent =
+      `Interactive dependency graph${focusNode ? ` centred on ${focusNode.blockName}` : ''}.`;
 
     const defs = svg('defs');
     const marker = svg('marker', {
@@ -107,8 +147,9 @@ export function renderDag(
     // round the wheel for maximum distinguishability, desaturated vs the node
     // palette so the wires stay subtle. Sorted ids → deterministic assignment.
     const sources = [...new Set(pg.edges.map((e) => e.to))].sort();
+    const srcIndex = new Map(sources.map((s, i) => [s, i])); // O(1) lookup, not O(E) indexOf
     const strokeFor = (src: string): string => {
-      const hue = Math.round((210 + (360 * sources.indexOf(src)) / sources.length) % 360);
+      const hue = Math.round((210 + (360 * (srcIndex.get(src) ?? 0)) / sources.length) % 360);
       return `hsl(${hue}, 38%, 62%)`;
     };
     pg.edges.forEach((e, i) => {
@@ -122,11 +163,29 @@ export function renderDag(
       root.append(path);
     });
 
+    const focusOnNode = (id: string): void => {
+      const node = index.byId.get(id);
+      if (!node) return;
+      currentFocus = id;
+      draw();
+      onSelect(node);
+    };
+
     for (const n of pg.nodes) {
-      const g = svg('g', { class: `dag-node${n.isFocus ? ' focus' : ''}`, 'data-id': n.id, 'data-kind': n.kind });
+      const g = svg('g', {
+        class: `dag-node${n.isFocus ? ' focus' : ''}`, 'data-id': n.id, 'data-kind': n.kind,
+        tabindex: 0, role: 'button',
+        'aria-label': `${n.label}, ${n.kind}${n.hidden > 0 ? `, ${n.hidden} more connected node${n.hidden === 1 ? '' : 's'} hidden` : ''}`
+          + `${n.isFocus ? ' (current focus)' : ''}`,
+      });
       g.append(svg('rect', { x: n.x, y: n.y, width: n.w, height: n.h, rx: 6, class: 'dag-rect', style: `fill:${kindColor(n.kind)}` }));
-      const label = svg('text', { x: n.x + 8, y: n.y + n.h / 2 + 4, class: 'dag-label' });
-      label.textContent = n.label;
+      // Native tooltip with the full (untruncated) label.
+      const tip = svg('title');
+      tip.textContent = n.label;
+      g.append(tip);
+      const budget = n.w - LABEL_PAD * 2 - (n.hidden > 0 ? HIDDEN_BADGE_W : 0);
+      const label = svg('text', { x: n.x + LABEL_PAD, y: n.y + n.h / 2 + 4, class: 'dag-label' });
+      label.textContent = fitLabel(n.label, budget);
       g.append(label);
       if (n.hidden > 0) {
         const badge = svg('text', { x: n.x + n.w - 6, y: n.y + 14, class: 'dag-hidden', 'text-anchor': 'end' });
@@ -135,11 +194,10 @@ export function renderDag(
       }
       g.addEventListener('click', () => {
         if (dragMoved) return; // this click ends a pan, not a selection
-        const node = index.byId.get(n.id);
-        if (!node) return;
-        currentFocus = n.id;
-        draw();
-        onSelect(node);
+        focusOnNode(n.id);
+      });
+      g.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); focusOnNode(n.id); }
       });
       root.append(g);
     }
@@ -151,11 +209,23 @@ export function renderDag(
   const wirePanZoom = (root: SVGSVGElement, pg: PositionedGraph): void => {
     const vb = { x: 0, y: 0, w: pg.width, h: pg.height };
     const apply = (): void => root.setAttribute('viewBox', `${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
+    resetView = (): void => { vb.x = 0; vb.y = 0; vb.w = pg.width; vb.h = pg.height; apply(); };
+    const zoom = (factor: number): void => { vb.w *= factor; vb.h *= factor; apply(); };
     root.addEventListener('wheel', (ev) => {
       ev.preventDefault();
-      const factor = ev.deltaY < 0 ? 0.9 : 1.1;
-      vb.w *= factor; vb.h *= factor;
-      apply();
+      zoom(ev.deltaY < 0 ? 0.9 : 1.1);
+    });
+    // Keyboard pan/zoom when the svg itself holds focus (not a node group).
+    root.addEventListener('keydown', (ev) => {
+      if (ev.target !== root) return; // node groups handle their own keys
+      const step = vb.w * 0.1;
+      const moves: Record<string, () => void> = {
+        ArrowLeft: () => { vb.x -= step; }, ArrowRight: () => { vb.x += step; },
+        ArrowUp: () => { vb.y -= step; }, ArrowDown: () => { vb.y += step; },
+        '+': () => zoom(0.9), '=': () => zoom(0.9), '-': () => zoom(1.1), '0': () => resetView(),
+      };
+      const fn = moves[ev.key];
+      if (fn) { ev.preventDefault(); fn(); apply(); }
     });
     // Pan only after the pointer moves past a small threshold, and capture the
     // pointer ONLY then. Capturing on pointerdown would retarget the pointerup

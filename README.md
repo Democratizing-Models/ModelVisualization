@@ -1,10 +1,14 @@
-# Static visualization of model JSON
+# Static visualization of HS3 models
 
 for discovery of the model structure
 
 ## Idea
 
-**Example file**: [link](https://github.com/RUB-EP1/amplitude-serialization/blob/main/models/lc2ppik-lhcb-2683025.json)
+**Example HS3 model** (external, illustrative — download and load via the file picker,
+or just pick a bundled `.hs3` sample from the dropdown):
+[amplitude-serialization model](https://github.com/RUB-EP1/amplitude-serialization/blob/main/models/lc2ppik-lhcb-2683025.json).
+Note this particular file is in the amplitude-serialization format; the bundled
+`.hs3` samples are the directly-loadable examples.
 
 **Representation**:
 
@@ -14,21 +18,39 @@ for discovery of the model structure
 
 GitHub pages: [link](https://democratizing-models.github.io/ModelVisualization/)
 
-## Locations of `json` models
+## Locations of HS3 models
+
+HS3 models are JSON documents, loaded with the `.hs3` extension. The viewer
+detects the format from the document shape, so other formats can plug in later
+as additional adapters.
+
 
 - [HEP Statistics Serialization Standard](https://github.com/hep-statistics-serialization-standard/hep-statistics-serialization-standard)
 - [Amplitude model serialization](https://rub-ep1.github.io/amplitude-serialization/)
 
-## Local deploying and hosting 
+## Running locally
 
-Just run the following commands. Page will be opened in browser
+This is a [Vite](https://vitejs.dev/) + TypeScript project. Requires Node 20+.
+
 ```
-git clone "https://github.com/Democratizing-Models/ModelVisualization"
-cd ./ModelVisualization/
-./index.html
+git clone https://github.com/Democratizing-Models/ModelVisualization
+cd ModelVisualization
+npm install
+npm run dev
 ```
-If using local file: page should have access to it. Hosting allows to achieve it.
-Run following command in `ModelVisualization` directory (after changing parameter of `fetchAndRenderTree` (at the very end of `index.html`) to json filename )
+
+Vite prints a local URL (default <http://localhost:5173/>); open it in a browser.
+Load a model with the file picker, or choose a bundled `.hs3` sample from the
+dropdown — no manual file-path editing needed.
+
+Other scripts:
+
 ```
-python -m http.server 8000
+npm run build      # type-check + production build to dist/
+npm run preview    # serve the built dist/ locally
+npm test           # run the vitest suite
 ```
+
+## License
+
+[MIT](./LICENSE) © DEMOS Consortium.
