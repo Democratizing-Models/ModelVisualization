@@ -31,7 +31,8 @@ const SEARCH_SUGGESTIONS = 1000;
 initTheme($<HTMLButtonElement>('theme-toggle'));
 
 /** Reject files larger than this before reading, to avoid hanging the tab. */
-const MAX_FILE_BYTES = 50 * 1024 * 1024;
+// Files above this size aren't blocked — the user is warned and may proceed.
+const LARGE_FILE_BYTES = 50 * 1024 * 1024;
 
 // Labels and sample list are derived from the format registry — adding a format
 // is a single registry entry, with no edits here. Each format's samples are
@@ -166,9 +167,16 @@ let loadToken = 0;
 fileInput.addEventListener('change', () => {
   const file = fileInput.files?.[0];
   if (!file) return;
-  if (file.size > MAX_FILE_BYTES) {
-    setStatus(`"${file.name}" is too large (${(file.size / 1e6).toFixed(0)} MB; limit ${MAX_FILE_BYTES / 1e6} MB)`, 'error');
-    return;
+  if (file.size > LARGE_FILE_BYTES) {
+    const proceed = window.confirm(
+      `"${file.name}" is large (${(file.size / 1e6).toFixed(0)} MB). ` +
+      `Loading it may be slow or unresponsive.\n\nProceed anyway?`,
+    );
+    if (!proceed) {
+      fileInput.value = ''; // clear so re-picking the same file fires `change` again
+      setStatus('Load cancelled', 'error');
+      return;
+    }
   }
   const token = ++loadToken;
   sampleSelect.value = ''; // this load is from a file; clear the sample selection
