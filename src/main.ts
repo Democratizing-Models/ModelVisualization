@@ -1,5 +1,6 @@
 /** App entry: load a model (file or bundled sample), render tree + dag + inspector. */
-import { detectAndParse, REGISTRY } from './adapters/detect.js';
+import { REGISTRY } from './adapters/detect.js';
+import type { ParseRequest, ParseResponse } from './adapters/parse.worker.js';
 import { renderTree } from './render/tree.js';
 import { renderInspector } from './render/inspector.js';
 import { initTheme } from './render/theme.js';
@@ -30,8 +31,8 @@ const SEARCH_SUGGESTIONS = 1000;
 
 initTheme($<HTMLButtonElement>('theme-toggle'));
 
-/** Reject files larger than this before reading, to avoid hanging the tab. */
-// Files above this size aren't blocked — the user is warned and may proceed.
+/** Files above this size aren't blocked — the user is warned (loading a huge
+ *  file may hang the tab) and may proceed or cancel. */
 const LARGE_FILE_BYTES = 50 * 1024 * 1024;
 
 // Labels and sample list are derived from the format registry — adding a format
@@ -145,15 +146,6 @@ function showModel(model: Model): void {
   }
 }
 
-function load(filename: string, source: string): void {
-  try {
-    showModel(detectAndParse(filename, source));
-  } catch (err) {
-    showEmpty();
-    setStatus(`Could not parse "${filename}" as a recognized model (HS3, XS3, or FlatPPL). (${(err as Error).message})`, 'error');
-  }
-}
-
 // Jump-to-node search over the current model; (re)set on each load so any node
 // in a large model is reachable without browsing the tree/cone.
 let jumpTo: ((query: string) => void) | null = null;
@@ -161,19 +153,44 @@ let jumpTo: ((query: string) => void) | null = null;
 nodeSearch.addEventListener('change', () => jumpTo?.(nodeSearch.value));
 
 // A monotonic token guards against out-of-order async loads (a slow sample fetch
-// resolving after a newer file/sample selection): only the latest wins.
+// or a slow worker parse resolving after a newer selection): only the latest
+// wins. It also tags each parse request so the worker's reply can be matched.
 let loadToken = 0;
+// Filename per in-flight token, for the parse-error message (the worker reports
+// only the failure reason, not what was being parsed).
+const pendingName = new Map<number, string>();
 
-fileInput.addEventListener('change', () => {
-  const file = fileInput.files?.[0];
-  if (!file) return;
+// Parsing runs in a worker so a large or pathological file can't hang the tab.
+const parseWorker = new Worker(new URL('./adapters/parse.worker.js', import.meta.url), { type: 'module' });
+parseWorker.onmessage = (e: MessageEvent<ParseResponse>) => {
+  const res = e.data;
+  if (res.id !== loadToken) return; // superseded by a newer load; ignore
+  const filename = pendingName.get(res.id) ?? 'model';
+  pendingName.delete(res.id);
+  if (res.ok) {
+    showModel(res.model);
+  } else {
+    showEmpty();
+    setStatus(`Could not parse "${filename}" as a recognized model (HS3, XS3, or FlatPPL). (${res.error})`, 'error');
+  }
+};
+
+/** Hand source to the worker under `token`, unless a newer load has started. */
+function dispatchParse(token: number, filename: string, source: string): void {
+  if (token !== loadToken) return;
+  pendingName.set(token, filename);
+  setStatus(`Parsing ${filename}…`);
+  parseWorker.postMessage({ id: token, filename, source } satisfies ParseRequest);
+}
+
+/** Read a dropped/picked File and parse it, warning first if it's very large. */
+function loadFile(file: File): void {
   if (file.size > LARGE_FILE_BYTES) {
     const proceed = window.confirm(
       `"${file.name}" is large (${(file.size / 1e6).toFixed(0)} MB). ` +
       `Loading it may be slow or unresponsive.\n\nProceed anyway?`,
     );
     if (!proceed) {
-      fileInput.value = ''; // clear so re-picking the same file fires `change` again
       setStatus('Load cancelled', 'error');
       return;
     }
@@ -182,9 +199,15 @@ fileInput.addEventListener('change', () => {
   sampleSelect.value = ''; // this load is from a file; clear the sample selection
   setStatus(`Reading ${file.name}…`);
   const reader = new FileReader();
-  reader.onload = () => { if (token === loadToken) load(file.name, String(reader.result)); };
+  reader.onload = () => dispatchParse(token, file.name, String(reader.result));
   reader.onerror = () => { if (token === loadToken) setStatus(`Could not read ${file.name}`, 'error'); };
   reader.readAsText(file);
+}
+
+fileInput.addEventListener('change', () => {
+  const file = fileInput.files?.[0];
+  fileInput.value = ''; // clear so re-picking the same file fires `change` again
+  if (file) loadFile(file);
 });
 
 sampleSelect.addEventListener('change', async () => {
@@ -199,7 +222,7 @@ sampleSelect.addEventListener('change', async () => {
     const res = await fetch(import.meta.env.BASE_URL + path);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const text = await res.text();
-    if (token === loadToken) load(name, text);
+    dispatchParse(token, name, text);
   } catch (err) {
     if (token === loadToken) setStatus(`Could not load sample "${value}": ${(err as Error).message}`, 'error');
   } finally {
@@ -207,6 +230,48 @@ sampleSelect.addEventListener('change', async () => {
     // (a dead-click otherwise). The format badge already shows what's loaded.
     sampleSelect.value = '';
   }
+});
+
+// --- drag-and-drop file loading -------------------------------------------
+// Accept a file dropped anywhere on the window. An overlay gives the drop a
+// visible target; it's shown while a drag carrying files is over the window.
+const dropOverlay = $<HTMLElement>('drop-overlay');
+const dragHasFiles = (e: DragEvent): boolean => !!e.dataTransfer && [...e.dataTransfer.types].includes('Files');
+window.addEventListener('dragover', (e) => {
+  if (!dragHasFiles(e)) return;
+  e.preventDefault(); // required for `drop` to fire
+  dropOverlay.hidden = false;
+});
+// relatedTarget is null only when the pointer leaves the window entirely, so
+// dragging over child elements doesn't flicker the overlay off.
+window.addEventListener('dragleave', (e) => { if (!e.relatedTarget) dropOverlay.hidden = true; });
+window.addEventListener('drop', (e) => {
+  if (!dragHasFiles(e)) return;
+  e.preventDefault();
+  dropOverlay.hidden = true;
+  const file = e.dataTransfer?.files?.[0];
+  if (file) loadFile(file);
+});
+
+// --- paste-to-load ---------------------------------------------------------
+// Load model text pasted into a dialog (source that isn't a local file). The
+// format is detected from content, so no extension is needed.
+const pasteBtn = $<HTMLButtonElement>('paste-btn');
+const pasteDialog = $<HTMLDialogElement>('paste-dialog');
+const pasteText = $<HTMLTextAreaElement>('paste-text');
+pasteBtn.addEventListener('click', () => {
+  pasteText.value = '';
+  pasteDialog.showModal();
+  pasteText.focus();
+});
+pasteDialog.addEventListener('close', () => {
+  if (pasteDialog.returnValue !== 'load') return; // Cancel / Esc
+  const source = pasteText.value;
+  if (!source.trim()) { setStatus('Nothing to load — paste box was empty', 'error'); return; }
+  const token = ++loadToken;
+  fileInput.value = '';
+  sampleSelect.value = '';
+  dispatchParse(token, 'pasted model', source);
 });
 
 // --- responsive pane tabs (shown only on narrow screens via CSS) ----------

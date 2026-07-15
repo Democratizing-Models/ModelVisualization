@@ -121,6 +121,68 @@ input[type="file"], select {
 }
 .theme-toggle:hover { background: var(--bg-hover); }
 
+.btn {
+  background: var(--bg-panel);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font: inherit;
+  cursor: pointer;
+}
+.btn:hover { background: var(--bg-hover); }
+.btn-primary { background: var(--blue); color: var(--badge-fg); border-color: var(--blue); font-weight: 600; }
+.btn-primary:hover { filter: brightness(1.08); background: var(--blue); }
+
+/* Drag-and-drop target: a full-window scrim shown only mid-drag. */
+.drop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--bg-dark) 78%, transparent);
+  pointer-events: none; /* never intercept the drop's own events */
+}
+.drop-overlay[hidden] { display: none; }
+.drop-overlay-inner {
+  border: 2px dashed var(--blue);
+  border-radius: 12px;
+  padding: 40px 64px;
+  color: var(--fg);
+  font-size: 20px;
+  font-weight: 600;
+  text-align: center;
+  background: var(--bg-panel);
+}
+.drop-overlay-inner small { color: var(--fg-dim); font-weight: 400; font-size: 13px; }
+
+/* Paste-to-load dialog. */
+.paste-dialog {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-panel);
+  color: var(--fg);
+  padding: 0;
+  max-width: min(680px, 92vw);
+  width: 680px;
+}
+.paste-dialog::backdrop { background: color-mix(in srgb, var(--bg-dark) 60%, transparent); }
+.paste-form { display: flex; flex-direction: column; gap: 10px; padding: 18px; }
+.paste-form label { color: var(--fg-dim); font-size: 13px; }
+.paste-form textarea {
+  background: var(--bg-dark);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  resize: vertical;
+}
+.paste-actions { display: flex; justify-content: flex-end; gap: 10px; }
+
 .layout {
   display: grid;
   grid-template-columns: 320px 1fr 380px;

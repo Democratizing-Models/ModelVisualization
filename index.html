@@ -23,7 +23,8 @@
         Load model
         <input id="file-input" type="file" accept=".hs3,.xs3,.flatppl,application/json" aria-describedby="file-hint" />
       </label>
-      <span id="file-hint" class="visually-hidden">Accepts model files: .hs3, .xs3, or .flatppl</span>
+      <span id="file-hint" class="visually-hidden">Accepts model files: .hs3, .xs3, or .flatppl. You can also drag and drop a file anywhere on the page.</span>
+      <button id="paste-btn" class="btn" type="button">Paste…</button>
       <select id="sample-select" aria-label="Load bundled sample">
         <option value="">Load a sample…</option>
         <!-- options populated from the format registry in main.ts -->
@@ -48,6 +49,22 @@
   </main>
 
   <div id="status" class="status" role="status" aria-live="polite"></div>
+
+  <!-- Shown while a drag carrying files is over the window (see main.ts). -->
+  <div id="drop-overlay" class="drop-overlay" hidden>
+    <div class="drop-overlay-inner">Drop a model file to load<br /><small>.hs3, .xs3, or .flatppl</small></div>
+  </div>
+
+  <dialog id="paste-dialog" class="paste-dialog" aria-label="Paste model text">
+    <form method="dialog" class="paste-form">
+      <label for="paste-text">Paste model text (HS3, XS3, or FlatPPL)</label>
+      <textarea id="paste-text" rows="14" spellcheck="false" autocomplete="off" placeholder="Paste model source here…"></textarea>
+      <div class="paste-actions">
+        <button class="btn" value="cancel" type="submit">Cancel</button>
+        <button class="btn btn-primary" value="load" type="submit">Load</button>
+      </div>
+    </form>
+  </dialog>
 
   <script type="module" src="/src/main.ts"></script>
 </body>
