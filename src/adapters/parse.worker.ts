@@ -20,6 +20,16 @@ export type ParseResponse =
   | { id: number; ok: true; model: Model }
   | { id: number; ok: false; error: string };
 
+/** Sent once, as soon as this module evaluates. The main thread uses its ABSENCE
+ *  to tell "the worker never started" (a blocked or missing worker chunk, which
+ *  fires no error event on the Worker in Chrome) apart from "this parse is just
+ *  slow" — the two are otherwise indistinguishable from a pending request. */
+export interface ParseReady { ready: true }
+
+export type ParseMessage = ParseResponse | ParseReady;
+
+(self as unknown as Worker).postMessage({ ready: true } satisfies ParseReady);
+
 self.onmessage = (e: MessageEvent<ParseRequest>) => {
   const { id, filename, source } = e.data;
   try {

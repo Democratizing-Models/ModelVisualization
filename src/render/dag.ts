@@ -127,14 +127,19 @@ export function renderDag(
     return bar;
   };
 
+  // Every kind in the model, in a stable order. Derived from the WHOLE model, not
+  // the current cone, so the colour key doesn't reshuffle as the user navigates —
+  // which also makes it fixed for the life of the model, so it is scanned once
+  // here rather than on every redraw.
+  const modelKinds = [...new Set([...index.byId.values()].map((n) => n.kind))].sort();
+
   // Kind→colour key for the graph. Graph nodes carry their kind only as a fill
   // (the tree has room for a text badge, the boxes don't), so without this the
   // colours are unreadable — and colour alone is not an accessible channel.
-  // Derived from the WHOLE model, not the current cone, so the key doesn't
-  // reshuffle as the user navigates. Swatches are plain elements, not <svg>, so
-  // the graph stays the only svg in the pane.
+  // Swatches are plain elements, not <svg>, so the graph stays the only svg in
+  // the pane.
   const legend = (): HTMLElement | null => {
-    const kinds = [...new Set([...index.byId.values()].map((n) => n.kind))].sort();
+    const kinds = modelKinds;
     if (kinds.length < 2) return null; // a single kind explains itself
     const bar = document.createElement('div');
     bar.className = 'dag-legend';
