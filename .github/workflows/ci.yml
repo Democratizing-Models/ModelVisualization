@@ -1,0 +1,36 @@
+name: CI
+
+# Every branch push, so a branch is checked before it ever reaches a pull
+# request. Deployment lives in deploy.yml and stays restricted to main — nothing
+# here publishes anything.
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One run per ref: pushing again supersedes an in-flight check of the same branch.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    # For a branch in this repo the push event already covers it, so skip the
+    # duplicate pull_request run. Fork PRs raise no push event here, and are the
+    # reason the pull_request trigger is kept at all.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      # `npm run build` is `tsc --noEmit && vite build`, so this type-checks too.
+      - run: npm run build

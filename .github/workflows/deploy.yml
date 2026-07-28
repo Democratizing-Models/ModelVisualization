@@ -24,6 +24,10 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # Gate the deploy on the suite: main should not publish a build whose tests
+      # fail. CI (ci.yml) runs the same command on every branch push; this is the
+      # last check before the site is actually replaced.
+      - run: npm test
       - run: npm run build
         env:
           NODE_ENV: production
