@@ -350,7 +350,9 @@ parseWorker.onmessage = (e: MessageEvent<ParseMessage>) => {
     // which is why `currentSample` is left untouched here). Only clear if there
     // is nothing to keep.
     if (!currentModel) showEmpty();
-    setStatus(`Could not parse "${filename}" as a model (HS3, XS3, or FlatPPL): ${res.error}`
+    // The reason already says what was wrong (unknown format, JSON syntax, or an
+    // adapter's own complaint), so this only supplies which file it was.
+    setStatus(`Could not load "${filename}": ${res.error}`
       + `${currentModel ? ' — the loaded model is unchanged.' : ''}`, 'error');
   }
 };

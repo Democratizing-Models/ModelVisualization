@@ -19,8 +19,11 @@ GitHub Pages: <https://democratizing-models.github.io/ModelVisualization/>
 | XS3 | `.xs3` (text) / JSON | [XS3](https://github.com/Democratizing-Models/XS3-Standard): objects (`identifier` + `type`) connected by `inputs`/`outputs`/`call_type`. |
 | FlatPPL | `.flatppl` | [FlatPPL](https://github.com/flatppl): a probabilistic-programming language where `name = expr` / `name ~ expr` bindings form a DAG. |
 
-The format is determined from the file's content and extension. Routing and the
-sample list are derived from the format registry (`src/adapters/detect.ts`).
+The format is determined from the file's content and extension. JSON-encoded
+models are recognized by content alone, so a document may keep a double
+extension (`model.hs3.json`) or a plain `.json` and still route correctly; the
+extension only matters for the formats that are not JSON. Routing and the sample
+list are derived from the format registry (`src/adapters/detect.ts`).
 
 ## Usage
 

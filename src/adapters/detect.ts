@@ -114,12 +114,16 @@ export function detectAndParse(filename: string, source: string): Model {
   const ext = filename.toLowerCase().split('.').pop() ?? '';
 
   // Non-fatal: many formats are JSON, but some (e.g. .xs3) are not — those score
-  // off `source`/`ext` instead.
+  // off `source`/`ext` instead. The failure reason is kept, so input that was
+  // plainly meant to be JSON can be reported as the syntax error it is instead of
+  // as an unrecognized format.
   let doc: unknown;
+  let jsonError: string | undefined;
   try {
     doc = JSON.parse(source);
-  } catch {
+  } catch (err) {
     doc = undefined;
+    jsonError = (err as Error).message;
   }
 
   const ctx: DetectContext = { ext, doc, source };
@@ -129,6 +133,17 @@ export function detectAndParse(filename: string, source: string): Model {
     const s = d.score(ctx);
     if (s > bestScore) { bestScore = s; best = d; }
   }
-  if (!best) throw new Error(`Unrecognized model in "${filename}": no known format matched`);
+  if (!best) {
+    // Source that OPENS like JSON (optionally behind a byte-order mark, which is
+    // itself enough to make JSON.parse fail) but didn't parse is a syntax error
+    // in a format we do support — not an unknown format. Saying so points at the
+    // real problem instead of implying the file type isn't handled.
+    // Messages deliberately omit the filename: callers already report which file
+    // failed, and repeating it here read as "...broken.hs3...broken.hs3...".
+    if (jsonError !== undefined && /^\uFEFF?\s*[{[]/.test(source)) {
+      throw new Error(`the file looks like JSON but could not be parsed: ${jsonError}`);
+    }
+    throw new Error('no known format matched (HS3, XS3, or FlatPPL)');
+  }
   return best.parse(ctx);
 }

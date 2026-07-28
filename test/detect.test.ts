@@ -49,4 +49,33 @@ describe('format detection / routing', () => {
     // input that matches no descriptor is rejected as unknown.
     expect(() => detectAndParse('x.hs3', 'not json {')).toThrow(/no known format|unrecognized/i);
   });
+
+  it('recognizes a JSON-encoded model whatever the file is called', () => {
+    // HS3 is scored purely on document shape, so a doc keeping its `.json` (or no
+    // extension at all) must route the same as a bare `.hs3`.
+    const hs3 = JSON.stringify({
+      metadata: { hs3_version: '0.2' },
+      distributions: [{ name: 'g', type: 'gaussian_dist', mean: 'mu' }],
+    });
+    for (const name of ['m.hs3', 'm.hs3.json', 'm.json', 'm.HS3.JSON', 'm', 'm.txt']) {
+      expect(detectAndParse(name, hs3).format, name).toBe('hs3');
+    }
+  });
+
+  it('reports malformed JSON as a syntax error, not an unknown format', () => {
+    // A trailing comma in an HS3 file is a broken file of a KNOWN format; calling
+    // it "no known format matched" points the user at the wrong problem.
+    const trailingComma = '{ "metadata": { "hs3_version": "0.2" }, }';
+    expect(() => detectAndParse('m.hs3', trailingComma)).toThrow(/looks like JSON but could not be parsed/);
+    // Same for a JSON array, and for a document behind a byte-order mark — the
+    // BOM alone is enough to make JSON.parse fail.
+    expect(() => detectAndParse('m.json', '[1, 2,]')).toThrow(/looks like JSON but could not be parsed/);
+    expect(() => detectAndParse('m.hs3', '\uFEFF{ "metadata": { "hs3_version": "0.2" } }'))
+      .toThrow(/looks like JSON but could not be parsed/);
+  });
+
+  it('still reports genuinely unknown input as an unknown format', () => {
+    // The JSON-syntax message must not swallow input that never looked like JSON.
+    expect(() => detectAndParse('m.txt', 'just some prose')).toThrow(/no known format/);
+  });
 });
