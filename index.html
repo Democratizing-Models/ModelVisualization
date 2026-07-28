@@ -21,9 +21,12 @@
     <div class="controls">
       <label class="file-label">
         Load model
-        <input id="file-input" type="file" accept=".hs3,.xs3,.flatppl,application/json" aria-describedby="file-hint" />
+        <!-- `.json` is listed so JSON-encoded models keep their double extension
+             (model.hs3.json) and still appear in the picker; detection is by
+             content, so the extension only affects what the dialog shows. -->
+        <input id="file-input" type="file" accept=".hs3,.xs3,.flatppl,.json,application/json" aria-describedby="file-hint" />
       </label>
-      <span id="file-hint" class="visually-hidden">Accepts model files: .hs3, .xs3, or .flatppl. You can also drag and drop a file anywhere on the page.</span>
+      <span id="file-hint" class="visually-hidden">Accepts model files: .hs3, .xs3, .flatppl, or JSON (including .hs3.json). You can also drag and drop a file anywhere on the page.</span>
       <button id="paste-btn" class="btn" type="button">Paste…</button>
       <select id="sample-select" aria-label="Load bundled sample">
         <option value="">Load a sample…</option>
