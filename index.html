@@ -29,9 +29,10 @@
         <option value="">Load a sample…</option>
         <!-- options populated from the format registry in main.ts -->
       </select>
-      <input id="node-search" type="search" placeholder="Find node…" aria-label="Find a node by name or id" list="node-search-list" disabled />
+      <input id="node-search" type="search" placeholder="Find node…  (/)" aria-label="Find a node by name, id, or type. Press slash to focus, Enter again for the next match." list="node-search-list" disabled />
       <datalist id="node-search-list"></datalist>
-      <span id="format-badge" class="badge" hidden aria-live="polite"></span>
+      <button id="format-badge" class="badge" type="button" hidden aria-live="polite"></button>
+      <button id="diag-btn" class="btn diag-btn" type="button" hidden></button>
       <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Toggle theme">☾</button>
     </div>
   </header>
@@ -44,7 +45,11 @@
 
   <main class="layout" data-active-pane="tree">
     <section id="tree-pane" class="tree-pane" role="tabpanel" aria-label="Model tree"></section>
+    <div class="splitter" data-edge="tree" role="separator" tabindex="0" aria-orientation="vertical"
+         aria-label="Resize tree pane" aria-valuemin="180" aria-valuemax="720" aria-valuenow="320"></div>
     <section id="dag-pane" class="dag-pane" role="tabpanel" aria-label="Dependency graph"></section>
+    <div class="splitter" data-edge="inspector" role="separator" tabindex="0" aria-orientation="vertical"
+         aria-label="Resize inspector pane" aria-valuemin="180" aria-valuemax="720" aria-valuenow="380"></div>
     <aside id="inspector-pane" class="inspector-pane" role="tabpanel" aria-label="Node inspector"></aside>
   </main>
 
@@ -54,6 +59,17 @@
   <div id="drop-overlay" class="drop-overlay" hidden>
     <div class="drop-overlay-inner">Drop a model file to load<br /><small>.hs3, .xs3, or .flatppl</small></div>
   </div>
+
+  <!-- Model metadata + the full diagnostic list (the status bar only counts them). -->
+  <dialog id="model-dialog" class="model-dialog" aria-label="Model information">
+    <form method="dialog" class="model-form">
+      <h2 class="model-title">Model</h2>
+      <div id="model-body" class="model-body"></div>
+      <div class="paste-actions">
+        <button class="btn btn-primary" value="close" type="submit">Close</button>
+      </div>
+    </form>
+  </dialog>
 
   <dialog id="paste-dialog" class="paste-dialog" aria-label="Paste model text">
     <form method="dialog" class="paste-form">

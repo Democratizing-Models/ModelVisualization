@@ -24,13 +24,25 @@ sample list are derived from the format registry (`src/adapters/detect.ts`).
 
 ## Usage
 
-- Select a bundled sample from the dropdown (grouped by format), or load a
-  `.hs3` / `.xs3` / `.flatppl` file with the file picker.
-- The search box locates a node by name and focuses it.
+- Select a bundled sample from the dropdown (grouped by format), load a
+  `.hs3` / `.xs3` / `.flatppl` file with the file picker, drag and drop one
+  anywhere on the page, or paste model text with **Paste…** (the format is
+  detected from the content, so pasted text needs no extension). Parsing runs in
+  a worker, so a large file never freezes the page.
+- The search box (`/` to focus) locates a node by name, id, or type and focuses
+  it; pressing Enter again steps to the next match.
 - Selecting a node updates the tree, graph, and inspector together.
 - The graph shows a bounded neighbourhood around the focused node; the hop
   stepper changes its size, and drag/scroll or the arrow / `+` / `-` / `0` keys
-  pan and zoom.
+  pan and zoom. Zoom is kept as you move between nodes; `⌖` reframes the whole
+  graph. The colour key under the toolbar maps node colours to kinds.
+- The format badge opens **Model** — the model's metadata plus every diagnostic,
+  including model-level ones that aren't attached to a node. A `⚠` button appears
+  next to it whenever a model has diagnostics; clicking a listed diagnostic
+  focuses the node it refers to.
+- Drag the seams between panes to resize them (widths are remembered).
+- Loading a bundled sample puts `?sample=…&node=…` in the address bar, so a
+  particular node of a particular sample can be linked to and shared.
 
 ## Building and running
 

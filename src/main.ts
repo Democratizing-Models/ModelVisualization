@@ -4,8 +4,11 @@ import type { ParseRequest, ParseResponse } from './adapters/parse.worker.js';
 import { renderTree } from './render/tree.js';
 import { renderInspector } from './render/inspector.js';
 import { initTheme } from './render/theme.js';
-import { clear, resetKindColors } from './render/dom.js';
-import { buildIndex, computeRoots, findNode, type Model, type SourceFormat } from './model/index.js';
+import { clear, el, resetKindColors } from './render/dom.js';
+import {
+  buildIndex, computeRoots, findMatches,
+  type Model, type ModelIndex, type ModelNode, type SourceFormat,
+} from './model/index.js';
 import { renderDag } from './render/dag.js';
 
 const $ = <T extends HTMLElement>(id: string): T => {
@@ -23,11 +26,21 @@ const fileInput = $<HTMLInputElement>('file-input');
 const sampleSelect = $<HTMLSelectElement>('sample-select');
 const nodeSearch = $<HTMLInputElement>('node-search');
 const searchList = $<HTMLDataListElement>('node-search-list');
+const diagBtn = $<HTMLButtonElement>('diag-btn');
+const modelDialog = $<HTMLDialogElement>('model-dialog');
+const modelBody = $<HTMLElement>('model-body');
 const layoutEl = document.querySelector<HTMLElement>('.layout')!;
 
 /** Max autocomplete suggestions to put in the datalist (full search still scans
  *  all nodes; this only bounds the suggestion DOM for very large models). */
-const SEARCH_SUGGESTIONS = 1000;
+const SEARCH_SUGGESTIONS = 200;
+
+// The currently displayed model, kept so the model dialog and the live search
+// suggestions can consult it outside a render pass.
+let currentModel: Model | null = null;
+let currentIndex: ModelIndex | null = null;
+/** Selects + reveals a node in the current model; null when nothing is loaded. */
+let selectNode: ((id: string) => void) | null = null;
 
 initTheme($<HTMLButtonElement>('theme-toggle'));
 
@@ -57,29 +70,96 @@ function setStatus(msg: string, level: 'info' | 'error' = 'info'): void {
   statusEl.setAttribute('aria-live', level === 'error' ? 'assertive' : 'polite');
 }
 
-/** Centred placeholder shown in an empty pane. */
-function emptyState(pane: HTMLElement, msg: string): void {
+/** Centred placeholder shown in an empty pane, with an optional call to action. */
+function emptyState(pane: HTMLElement, msg: string, action?: HTMLElement): void {
   clear(pane);
-  const p = document.createElement('p');
-  p.className = 'empty-state';
-  p.textContent = msg;
-  pane.append(p);
+  pane.append(el('div', { class: 'empty-state' }, [el('p', { class: 'empty-msg' }, [msg]), action]));
 }
 
 function showEmpty(): void {
   badge.hidden = true;
+  diagBtn.hidden = true;
   nodeSearch.disabled = true;
   nodeSearch.value = '';
   searchList.replaceChildren();
   jumpTo = null;
+  selectNode = null;
+  currentModel = null;
+  currentIndex = null;
   emptyState(treePane, 'No model loaded.');
-  emptyState(dagPane, 'No model loaded. Choose a sample above, or load a .hs3, .xs3, or .flatppl file. Selecting a node updates the tree, graph, and inspector together.');
+  // A button, not just instructions: the fastest way to understand what this
+  // viewer does is to be looking at a model.
+  const demo = SAMPLES[0];
+  emptyState(
+    dagPane,
+    'No model loaded. Drop a .hs3, .xs3, or .flatppl file anywhere, paste one, or start with a bundled sample. Selecting a node updates the tree, graph, and inspector together.',
+    demo ? el('button', {
+      class: 'btn btn-primary', type: 'button',
+      onclick: () => { void loadSample(demo.value); },
+    }, [`Load sample: ${demo.label}`]) : undefined,
+  );
   emptyState(inspectorPane, 'Select a node to inspect.');
 }
+
+/** Fill the model dialog from the loaded model: summary, metadata, diagnostics. */
+function renderModelDialog(model: Model): void {
+  clear(modelBody);
+
+  const summary = el('dl', { class: 'model-summary' }, [
+    el('dt', {}, ['format']), el('dd', {}, [FORMAT_LABEL[model.format] ?? model.format]),
+    el('dt', {}, ['nodes']), el('dd', {}, [String(model.nodes.length)]),
+    el('dt', {}, ['edges']), el('dd', {}, [String(model.edges.length)]),
+  ]);
+  modelBody.append(el('h3', {}, ['Summary']), summary);
+
+  // Metadata is parsed by every adapter (HS3 `metadata`, XS3 payload) but had no
+  // reader anywhere in the UI until now.
+  const metaKeys = Object.keys(model.meta);
+  modelBody.append(el('h3', {}, ['Metadata']));
+  modelBody.append(metaKeys.length > 0
+    ? el('pre', {}, [JSON.stringify(model.meta, null, 2)])
+    : el('p', { class: 'model-none' }, ['This model carries no metadata.']));
+
+  // Every diagnostic, including the model-level ones (no nodeId) that the
+  // inspector cannot show and the status bar only counts.
+  modelBody.append(el('h3', {}, ['Diagnostics']));
+  if (model.diagnostics.length === 0) {
+    modelBody.append(el('p', { class: 'model-none' }, ['No diagnostics — the model parsed cleanly.']));
+    return;
+  }
+  const list = el('ul', { class: 'diag-list' });
+  // Worst first, so errors are read before warnings.
+  const rank = { error: 0, warn: 1, info: 2 } as const;
+  const sorted = [...model.diagnostics].sort((a, b) => rank[a.level] - rank[b.level]);
+  for (const d of sorted) {
+    const target = d.nodeId !== undefined ? currentIndex?.byId.get(d.nodeId) : undefined;
+    list.append(el('li', { dataset: { level: d.level } }, [
+      el('span', { class: 'diag-level' }, [d.level]),
+      target
+        ? el('button', {
+          class: 'xref', type: 'button',
+          title: `Focus "${target.blockName}"`,
+          onclick: () => { modelDialog.close(); selectNode?.(target.id); },
+        }, [d.msg])
+        : el('span', { class: 'diag-msg' }, [d.msg]),
+    ]));
+  }
+  modelBody.append(list);
+}
+
+function openModelDialog(): void {
+  if (!currentModel) return;
+  renderModelDialog(currentModel);
+  modelDialog.showModal();
+}
+
+badge.addEventListener('click', openModelDialog);
+diagBtn.addEventListener('click', openModelDialog);
 
 function showModel(model: Model): void {
   badge.hidden = false;
   badge.textContent = FORMAT_LABEL[model.format];
+  badge.title = 'Model info, metadata, and diagnostics';
 
   // Fresh, first-seen kind→colour assignment for this model (distinct colours
   // per kind, deterministic per render).
@@ -87,6 +167,8 @@ function showModel(model: Model): void {
 
   // One index per model, shared by tree, dag and inspector (no per-click rebuilds).
   const index = buildIndex(model);
+  currentModel = model;
+  currentIndex = index;
   // Roots computed ONCE here and shared by the tree and the default focus.
   const roots = computeRoots(model, index);
 
@@ -104,6 +186,7 @@ function showModel(model: Model): void {
     renderInspector(model, index, node, inspectorPane, select);
     tree.focus(id);
     dag.focus(id);
+    syncUrl(id); // keep the address bar shareable (samples only)
   };
 
   const initial = roots[0]?.id ?? model.nodes[0]?.id ?? '';
@@ -111,24 +194,35 @@ function showModel(model: Model): void {
   // screens that gives visible feedback for a tap; on wide screens every pane is
   // shown regardless, so it's a no-op there.
   const userSelect = (id: string): void => { select(id); activatePane('inspector'); };
+  selectNode = userSelect; // for the diagnostics list in the model dialog
   tree = renderTree(model, index, treePane, (node) => userSelect(node.id), roots);
   dag = renderDag(index, dagPane, initial, (node) => userSelect(node.id));
 
   // Enable jump-to-node search and seed autocomplete suggestions. Search is the
   // primary way to reach a node in a large model that the cone/capped tree hide.
-  searchList.replaceChildren();
-  const frag = document.createDocumentFragment();
-  for (const n of model.nodes.slice(0, SEARCH_SUGGESTIONS)) {
-    frag.append(new Option(n.blockName));
-  }
-  searchList.append(frag);
+  fillSuggestions(model.nodes);
   nodeSearch.disabled = model.nodes.length === 0;
   nodeSearch.value = '';
+  searchQuery = '';
+  searchMatches = [];
   jumpTo = (query: string): void => {
-    if (!query.trim()) return;
-    const match = findNode(model.nodes, index.byId, query);
-    if (match) { userSelect(match.id); setStatus(`Focused "${match.blockName}"`); }
-    else setStatus(`No node matching "${query.trim()}"`, 'error');
+    const q = query.trim();
+    if (!q) return;
+    // Repeating the same query steps to the NEXT match, so every node matching a
+    // common substring is reachable — previously only the first one ever was.
+    if (q !== searchQuery) {
+      searchQuery = q;
+      searchMatches = findMatches(model.nodes, index.byId, q);
+      searchPos = 0;
+    } else if (searchMatches.length > 1) {
+      searchPos = (searchPos + 1) % searchMatches.length;
+    }
+    const match = searchMatches[searchPos];
+    if (!match) { setStatus(`No node matching "${q}"`, 'error'); return; }
+    userSelect(match.id);
+    setStatus(searchMatches.length > 1
+      ? `Focused "${match.blockName}" — match ${searchPos + 1} of ${searchMatches.length}; press Enter again for the next`
+      : `Focused "${match.blockName}"`);
   };
 
   const errors = model.diagnostics.filter((d) => d.level === 'error').length;
@@ -137,6 +231,19 @@ function showModel(model: Model): void {
   setStatus(`${FORMAT_LABEL[model.format]}: ${model.nodes.length} nodes, ${model.edges.length} edges${diagText}`,
     errors ? 'error' : 'info');
 
+  // The status bar only COUNTS diagnostics, and the inspector can only show ones
+  // attached to a node — so surface a button that opens the full list, including
+  // model-level messages that otherwise had no reader at all.
+  const total = model.diagnostics.length;
+  diagBtn.hidden = total === 0;
+  if (total > 0) {
+    diagBtn.textContent = `⚠ ${total}`;
+    diagBtn.dataset.level = errors ? 'error' : warns ? 'warn' : 'info';
+    const label = `${total} diagnostic${total === 1 ? '' : 's'} (${errors} error(s), ${warns} warning(s)) — click to read`;
+    diagBtn.title = label;
+    diagBtn.setAttribute('aria-label', label);
+  }
+
   // Bootstrap the shared selection so the tree highlight, inspector, and DAG all
   // open on the same default node instead of an empty inspector.
   if (initial) {
@@ -144,13 +251,42 @@ function showModel(model: Model): void {
   } else {
     emptyState(inspectorPane, 'Select a node to inspect.');
   }
+
+  // A ?node= deep link overrides the default root focus, once, after the panes
+  // exist. Accepts an id or any search term so hand-written links still work.
+  if (pendingNodeId) {
+    const wanted = pendingNodeId;
+    pendingNodeId = null;
+    const target = index.byId.get(wanted) ?? findMatches(model.nodes, index.byId, wanted)[0];
+    if (target) userSelect(target.id);
+    else setStatus(`Linked node "${wanted}" is not in this model`, 'error');
+  }
+}
+
+/** Put `nodes` (capped) into the search datalist as autocomplete suggestions. */
+function fillSuggestions(nodes: ModelNode[]): void {
+  const frag = document.createDocumentFragment();
+  for (const n of nodes.slice(0, SEARCH_SUGGESTIONS)) frag.append(new Option(n.blockName));
+  searchList.replaceChildren(frag);
 }
 
 // Jump-to-node search over the current model; (re)set on each load so any node
 // in a large model is reachable without browsing the tree/cone.
 let jumpTo: ((query: string) => void) | null = null;
+// Cycling state: the query the current match list was built for, that list, and
+// where in it we are. Re-submitting the same query advances `searchPos`.
+let searchQuery = '';
+let searchMatches: ModelNode[] = [];
+let searchPos = 0;
 
 nodeSearch.addEventListener('change', () => jumpTo?.(nodeSearch.value));
+// Narrow the autocomplete suggestions to what actually matches, so a node far
+// down a large model still shows up (the capped list is in model order).
+nodeSearch.addEventListener('input', () => {
+  if (!currentModel || !currentIndex) return;
+  const q = nodeSearch.value.trim();
+  fillSuggestions(q ? findMatches(currentModel.nodes, currentIndex.byId, q) : currentModel.nodes);
+});
 
 // A monotonic token guards against out-of-order async loads (a slow sample fetch
 // or a slow worker parse resolving after a newer selection): only the latest
@@ -170,8 +306,12 @@ parseWorker.onmessage = (e: MessageEvent<ParseResponse>) => {
   if (res.ok) {
     showModel(res.model);
   } else {
-    showEmpty();
-    setStatus(`Could not parse "${filename}" as a recognized model (HS3, XS3, or FlatPPL). (${res.error})`, 'error');
+    // Keep whatever is on screen: a mistyped paste or a wrongly dropped file
+    // shouldn't destroy the model the user was reading. Only clear if there is
+    // nothing to keep.
+    if (!currentModel) showEmpty();
+    setStatus(`Could not parse "${filename}" as a model (HS3, XS3, or FlatPPL): ${res.error}`
+      + `${currentModel ? ' — the loaded model is unchanged.' : ''}`, 'error');
   }
 };
 
@@ -197,6 +337,7 @@ function loadFile(file: File): void {
   }
   const token = ++loadToken;
   sampleSelect.value = ''; // this load is from a file; clear the sample selection
+  currentSample = null;    // ...so the URL stops advertising a sample link
   setStatus(`Reading ${file.name}…`);
   const reader = new FileReader();
   reader.onload = () => dispatchParse(token, file.name, String(reader.result));
@@ -210,12 +351,13 @@ fileInput.addEventListener('change', () => {
   if (file) loadFile(file);
 });
 
-sampleSelect.addEventListener('change', async () => {
-  const path = SAMPLE_PATH.get(sampleSelect.value);
+/** Fetch and load a bundled sample by its registry value. */
+async function loadSample(value: string): Promise<void> {
+  const path = SAMPLE_PATH.get(value);
   if (!path) return;
   const token = ++loadToken;
   fileInput.value = ''; // this load is from a sample; clear any chosen file
-  const value = sampleSelect.value;
+  currentSample = value; // only samples can be deep-linked (a local file can't)
   const name = path.split('/').pop()!;
   setStatus(`Loading sample "${name}"…`);
   try {
@@ -230,7 +372,28 @@ sampleSelect.addEventListener('change', async () => {
     // (a dead-click otherwise). The format badge already shows what's loaded.
     sampleSelect.value = '';
   }
-});
+}
+
+sampleSelect.addEventListener('change', () => { void loadSample(sampleSelect.value); });
+
+// --- shareable URL ---------------------------------------------------------
+// `?sample=<registry value>&node=<id>` restores a view. Only bundled samples can
+// be linked — a locally loaded file isn't fetchable from a URL — so a file/paste
+// load clears the parameters rather than leaving a link that resolves elsewhere.
+let currentSample: string | null = null;
+let pendingNodeId: string | null = null;
+
+function syncUrl(nodeId: string | null): void {
+  const url = new URL(location.href);
+  if (currentSample) {
+    url.searchParams.set('sample', currentSample);
+    if (nodeId) url.searchParams.set('node', nodeId); else url.searchParams.delete('node');
+  } else {
+    url.searchParams.delete('sample');
+    url.searchParams.delete('node');
+  }
+  history.replaceState(null, '', url);
+}
 
 // --- drag-and-drop file loading -------------------------------------------
 // Accept a file dropped anywhere on the window. An overlay gives the drop a
@@ -271,6 +434,7 @@ pasteDialog.addEventListener('close', () => {
   const token = ++loadToken;
   fileInput.value = '';
   sampleSelect.value = '';
+  currentSample = null;
   dispatchParse(token, 'pasted model', source);
 });
 
@@ -284,5 +448,96 @@ for (const tab of tabs) {
   tab.addEventListener('click', () => activatePane(tab.dataset.pane!));
 }
 
+// --- resizable panes -------------------------------------------------------
+// The side panes were fixed-width, which truncated long node names with no way
+// to widen. Each splitter drives a CSS var on .layout; the width is remembered.
+type PaneEdge = 'tree' | 'inspector';
+const PANE_VAR: Record<PaneEdge, string> = { tree: '--tree-w', inspector: '--insp-w' };
+const PANE_KEY: Record<PaneEdge, string> = { tree: 'mv-tree-w', inspector: 'mv-insp-w' };
+const PANE_DEFAULT: Record<PaneEdge, number> = { tree: 320, inspector: 380 };
+const PANE_MIN = 180;
+const PANE_MAX = 720;
+const splitters = [...document.querySelectorAll<HTMLElement>('.splitter')];
+
+function paneWidth(edge: PaneEdge): number {
+  return parseInt(layoutEl.style.getPropertyValue(PANE_VAR[edge]), 10) || PANE_DEFAULT[edge];
+}
+
+function setPaneWidth(edge: PaneEdge, px: number): void {
+  const w = Math.round(Math.min(PANE_MAX, Math.max(PANE_MIN, px)));
+  layoutEl.style.setProperty(PANE_VAR[edge], `${w}px`);
+  splitters.find((s) => s.dataset.edge === edge)?.setAttribute('aria-valuenow', String(w));
+  try { globalThis.localStorage?.setItem(PANE_KEY[edge], String(w)); } catch { /* private mode */ }
+}
+
+for (const edge of ['tree', 'inspector'] as PaneEdge[]) {
+  const saved = Number(globalThis.localStorage?.getItem(PANE_KEY[edge]));
+  if (Number.isFinite(saved) && saved > 0) setPaneWidth(edge, saved);
+}
+
+for (const sep of splitters) {
+  const edge = sep.dataset.edge as PaneEdge;
+  sep.addEventListener('pointerdown', (ev) => {
+    ev.preventDefault(); // don't start a text selection or a native drag
+    sep.dataset.dragging = 'true';
+    sep.setPointerCapture?.(ev.pointerId);
+    document.body.style.userSelect = 'none';
+  });
+  sep.addEventListener('pointermove', (ev) => {
+    if (!sep.dataset.dragging) return;
+    const box = layoutEl.getBoundingClientRect();
+    // The inspector is measured from the right edge, so its width grows as the
+    // pointer moves left.
+    setPaneWidth(edge, edge === 'tree' ? ev.clientX - box.left : box.right - ev.clientX);
+  });
+  const endDrag = (ev: PointerEvent): void => {
+    if (!sep.dataset.dragging) return;
+    delete sep.dataset.dragging;
+    sep.releasePointerCapture?.(ev.pointerId);
+    document.body.style.userSelect = '';
+  };
+  sep.addEventListener('pointerup', endDrag);
+  sep.addEventListener('pointercancel', endDrag);
+  // Keyboard resizing, per the ARIA separator pattern.
+  sep.addEventListener('keydown', (ev) => {
+    const step = ev.shiftKey ? 48 : 16;
+    const grow = edge === 'tree' ? 'ArrowRight' : 'ArrowLeft';
+    const shrink = edge === 'tree' ? 'ArrowLeft' : 'ArrowRight';
+    if (ev.key === grow) { ev.preventDefault(); setPaneWidth(edge, paneWidth(edge) + step); }
+    else if (ev.key === shrink) { ev.preventDefault(); setPaneWidth(edge, paneWidth(edge) - step); }
+    else if (ev.key === 'Home') { ev.preventDefault(); setPaneWidth(edge, PANE_DEFAULT[edge]); }
+  });
+}
+
+// --- global keyboard shortcuts ---------------------------------------------
+// "/" jumps to the node search from anywhere (it was mouse-only); Escape leaves
+// it. Typing in a field or dialog is never hijacked.
+document.addEventListener('keydown', (ev) => {
+  const target = ev.target as HTMLElement | null;
+  const typing = !!target
+    && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA'
+      || target.tagName === 'SELECT' || target.isContentEditable);
+  if (ev.key === '/' && !typing && !ev.metaKey && !ev.ctrlKey && !ev.altKey) {
+    if (nodeSearch.disabled) return;
+    ev.preventDefault();
+    nodeSearch.focus();
+    nodeSearch.select();
+  } else if (ev.key === 'Escape' && target === nodeSearch) {
+    nodeSearch.value = '';
+    nodeSearch.blur();
+  }
+});
+
+// --- startup ---------------------------------------------------------------
 showEmpty();
-setStatus('Load a model file, or pick a bundled sample.');
+// Restore a linked view (?sample=…&node=…) if present, else invite a load.
+const startUrl = new URL(location.href);
+const linkedSample = startUrl.searchParams.get('sample');
+const linkedNode = startUrl.searchParams.get('node');
+if (linkedSample && SAMPLE_PATH.has(linkedSample)) {
+  pendingNodeId = linkedNode;
+  void loadSample(linkedSample);
+} else {
+  if (linkedSample) setStatus(`Unknown sample "${linkedSample}" in the link — pick one from the list.`, 'error');
+  else setStatus('Load a model file, or pick a bundled sample. Press / to search nodes.');
+}

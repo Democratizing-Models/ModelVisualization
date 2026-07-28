@@ -101,13 +101,21 @@ input[type="file"], select {
   padding: 4px 6px;
   font: inherit;
 }
+/* Also a button (opens the model info + diagnostics dialog). */
 .badge {
   background: var(--magenta);
   color: var(--badge-fg);
+  border: none;
   border-radius: 6px;
   padding: 2px 8px;
+  font: inherit;
   font-weight: 600;
+  cursor: pointer;
 }
+.badge:hover { filter: brightness(1.1); }
+/* Diagnostic count — colour follows the worst level present. */
+.diag-btn[data-level="error"] { color: var(--red); border-color: var(--red); }
+.diag-btn[data-level="warn"] { color: var(--yellow); border-color: var(--yellow); }
 .theme-toggle {
   background: var(--bg-panel);
   color: var(--fg);
@@ -183,19 +191,67 @@ input[type="file"], select {
 }
 .paste-actions { display: flex; justify-content: flex-end; gap: 10px; }
 
+/* Model info dialog: metadata + the full diagnostic list. */
+.model-dialog {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-panel);
+  color: var(--fg);
+  padding: 0;
+  max-width: min(680px, 92vw);
+  width: 680px;
+}
+.model-dialog::backdrop { background: color-mix(in srgb, var(--bg-dark) 60%, transparent); }
+.model-form { display: flex; flex-direction: column; gap: 10px; padding: 18px; }
+.model-title { font-size: 15px; margin: 0; color: var(--fg); }
+.model-body { max-height: 60vh; overflow: auto; }
+.model-body h3 {
+  font-size: 12px; color: var(--fg-dim); text-transform: uppercase;
+  letter-spacing: 0.04em; margin: 14px 0 4px;
+}
+.model-body h3:first-child { margin-top: 0; }
+.model-body pre {
+  background: var(--bg-dark); border: 1px solid var(--border); border-radius: 6px;
+  padding: 10px; margin: 0; overflow: auto; font-size: 12px; max-height: 30vh;
+}
+.model-summary { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; margin: 0; }
+.model-summary dt { color: var(--cyan); }
+.model-summary dd { margin: 0; color: var(--fg); word-break: break-word; }
+.model-none { color: var(--fg-dim); margin: 0; font-style: italic; }
+/* Diagnostics: model-level entries are plain text, per-node ones are buttons
+ * that focus the offending node. */
+.diag-list { list-style: none; padding: 0; margin: 0; }
+.diag-list li { padding: 3px 0; display: flex; gap: 6px; align-items: baseline; }
+.diag-level {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em;
+  flex: none; min-width: 3.4em;
+}
+.diag-list li[data-level="error"] .diag-level { color: var(--red); }
+.diag-list li[data-level="warn"] .diag-level { color: var(--yellow); }
+.diag-list li[data-level="info"] .diag-level { color: var(--fg-dim); }
+.diag-msg { color: var(--fg); }
+
+/* Side pane widths are CSS vars so the splitters can set them (and restore a
+ * saved width) without touching the template. */
 .layout {
   display: grid;
-  grid-template-columns: 320px 1fr 380px;
+  grid-template-columns: var(--tree-w, 320px) 6px 1fr 6px var(--insp-w, 380px);
   height: calc(100vh - 96px);
 }
-.tree-pane { overflow: auto; padding: 12px 16px; border-right: 1px solid var(--border); }
+.tree-pane { overflow: auto; padding: 12px 16px; }
+
+/* Drag handles between the panes. */
+.splitter { background: var(--border); cursor: col-resize; }
+.splitter:hover, .splitter[data-dragging] { background: var(--blue); }
+.splitter:focus-visible { outline: 2px solid var(--blue); outline-offset: -1px; }
+
 .empty-state { color: var(--fg-dim); padding: 24px; text-align: center; margin: auto; max-width: 44ch; line-height: 1.5; }
+.empty-msg { margin: 0 0 14px; }
 .tree-note { color: var(--fg-dim); font-size: 12px; font-style: italic; padding: 6px 8px; margin: 4px 0 0; }
 .inspector-pane {
   overflow: auto;
   padding: 12px 16px;
   background: var(--bg-panel);
-  border-left: 1px solid var(--border);
   color: var(--fg);
 }
 
@@ -299,7 +355,7 @@ input[type="file"], select {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  /* tree-pane supplies the left seam; inspector supplies the right one. */
+  /* The splitters on either side supply the seams. */
 }
 .dag-toolbar { display: flex; gap: 6px; padding: 8px; border-bottom: 1px solid var(--border); }
 .dag-hop-stepper { display: flex; align-items: center; gap: 6px; }
@@ -315,6 +371,18 @@ input[type="file"], select {
 .dag-step:hover:not(:disabled) { background: var(--bg-hover); }
 .dag-step:disabled { opacity: 0.4; cursor: default; }
 .dag-hop-count { min-width: 1.5em; text-align: center; color: var(--fg); font-variant-numeric: tabular-nums; }
+/* Kind colour key; wraps rather than squeezing the graph on a narrow pane. */
+.dag-legend {
+  display: flex; flex-wrap: wrap; gap: 4px 12px;
+  padding: 6px 8px; border-bottom: 1px solid var(--border);
+  font-size: 11px; color: var(--fg-dim);
+}
+.dag-legend-item { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.dag-legend-swatch {
+  width: 10px; height: 10px; border-radius: 3px;
+  background: var(--fg-dim); border: 1px solid var(--border);
+}
+
 .dag-svg { flex: 1; width: 100%; min-height: 0; touch-action: none; cursor: grab; }
 .dag-svg:active { cursor: grabbing; }
 
@@ -352,6 +420,7 @@ input[type="file"], select {
     background: var(--bg-dark); border-bottom: 1px solid var(--border);
   }
   .layout { grid-template-columns: 1fr; }
+  .splitter { display: none; } /* one pane at a time — nothing to resize against */
   .layout > section, .layout > aside { display: none; border-right: none; }
   .layout[data-active-pane="tree"] #tree-pane { display: block; }
   .layout[data-active-pane="dag"] #dag-pane { display: flex; }

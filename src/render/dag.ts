@@ -12,6 +12,12 @@ import type { ModelNode, ModelIndex } from '../model/index.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const MIN_HOPS = 1;
+/** Upper bound on the hop stepper — past this the cone is the whole model and
+ *  each step only costs layout time. */
+const MAX_HOPS = 12;
+/** Zoom bounds, as multipliers on the graph extent (1 = fit; smaller = closer). */
+const MIN_ZOOM = 0.05;
+const MAX_ZOOM = 4;
 const LABEL_PAD = 8;          // text inset on each side of the node box
 const HIDDEN_BADGE_W = 22;    // space reserved for the "+N" badge when present
 const PX_PER_CHAR = 7;        // ~12px monospace glyph advance
@@ -44,6 +50,11 @@ export function renderDag(
 ): DagController {
   let currentFocus = focusId;
   let hops = 3;
+  // How far in the user is zoomed, as a multiplier on the graph extent (1 = fit
+  // the whole graph). Persisted ACROSS redraws so re-focusing or changing hops
+  // keeps the current zoom instead of snapping back to full extent; the new
+  // focus is centred at that zoom.
+  let zoomLevel = 1;
   // Set true once a pointer drag crosses the move threshold, so the trailing
   // `click` after a pan is ignored instead of selecting a node.
   let dragMoved = false;
@@ -63,6 +74,8 @@ export function renderDag(
   const draw = (): void => {
     clear(host);
     host.append(toolbar());
+    const legendEl = legend();
+    if (legendEl) host.append(legendEl);
     host.append(buildSvg(layoutFor()));
   };
 
@@ -102,12 +115,41 @@ export function renderDag(
     count.setAttribute('aria-live', 'polite');
     count.setAttribute('aria-label', `${hops} hops`);
 
-    const inc = stepBtn('dag-hop-inc', 'More hops', '+', () => { hops += 1; draw(); });
+    const inc = stepBtn('dag-hop-inc', 'More hops', '+', () => {
+      if (hops < MAX_HOPS) { hops += 1; draw(); }
+    });
+    inc.disabled = hops >= MAX_HOPS;
 
     const reset = stepBtn('dag-reset', 'Reset view', '⌖', () => resetView());
 
     stepper.append(lbl, dec, count, inc);
     bar.append(stepper, reset);
+    return bar;
+  };
+
+  // Kind→colour key for the graph. Graph nodes carry their kind only as a fill
+  // (the tree has room for a text badge, the boxes don't), so without this the
+  // colours are unreadable — and colour alone is not an accessible channel.
+  // Derived from the WHOLE model, not the current cone, so the key doesn't
+  // reshuffle as the user navigates. Swatches are plain elements, not <svg>, so
+  // the graph stays the only svg in the pane.
+  const legend = (): HTMLElement | null => {
+    const kinds = [...new Set([...index.byId.values()].map((n) => n.kind))].sort();
+    if (kinds.length < 2) return null; // a single kind explains itself
+    const bar = document.createElement('div');
+    bar.className = 'dag-legend';
+    bar.setAttribute('role', 'list');
+    bar.setAttribute('aria-label', 'Node kind colour key');
+    for (const kind of kinds) {
+      const item = document.createElement('span');
+      item.className = 'dag-legend-item';
+      item.setAttribute('role', 'listitem');
+      const swatch = document.createElement('span');
+      swatch.className = 'dag-legend-swatch';
+      swatch.style.background = kindColor(kind);
+      item.append(swatch, document.createTextNode(kind));
+      bar.append(item);
+    }
     return bar;
   };
 
@@ -218,10 +260,33 @@ export function renderDag(
   };
 
   const wirePanZoom = (root: SVGSVGElement, pg: PositionedGraph): void => {
-    const vb = { x: 0, y: 0, w: pg.width, h: pg.height };
+    const vb = { x: 0, y: 0, w: pg.width * zoomLevel, h: pg.height * zoomLevel };
+    // Carry the zoom over from the previous draw and centre it on the new focus,
+    // so clicking a neighbour keeps you at the same magnification instead of
+    // being yanked back out to the whole graph.
+    const focused = pg.nodes.find((n) => n.isFocus);
+    if (focused && zoomLevel !== 1) {
+      vb.x = focused.x + focused.w / 2 - vb.w / 2;
+      vb.y = focused.y + focused.h / 2 - vb.h / 2;
+    }
     const apply = (): void => root.setAttribute('viewBox', `${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
-    resetView = (): void => { vb.x = 0; vb.y = 0; vb.w = pg.width; vb.h = pg.height; apply(); };
-    const zoom = (factor: number): void => { vb.w *= factor; vb.h *= factor; apply(); };
+    resetView = (): void => {
+      zoomLevel = 1;
+      vb.x = 0; vb.y = 0; vb.w = pg.width; vb.h = pg.height;
+      apply();
+    };
+    // Zoom about the view CENTRE (growing the box from its top-left corner, as
+    // this used to, slides the graph out of frame as you zoom out).
+    const zoom = (factor: number): void => {
+      const next = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoomLevel * factor));
+      if (next === zoomLevel) return;
+      const cx = vb.x + vb.w / 2, cy = vb.y + vb.h / 2;
+      zoomLevel = next;
+      vb.w = pg.width * zoomLevel; vb.h = pg.height * zoomLevel;
+      vb.x = cx - vb.w / 2; vb.y = cy - vb.h / 2;
+      apply();
+    };
+    apply(); // adopt the carried-over zoom/centre (buildSvg framed the full graph)
     root.addEventListener('wheel', (ev) => {
       ev.preventDefault();
       zoom(ev.deltaY < 0 ? 0.9 : 1.1);
