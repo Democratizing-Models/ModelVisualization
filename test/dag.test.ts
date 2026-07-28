@@ -130,6 +130,57 @@ describe('renderDag', () => {
     expect(vb()).toBe(initial);
   });
 
+  it('keeps the zoom level when the focus changes, and recentres on the new focus', () => {
+    renderDag(index, host, 'likelihood', () => {});
+    const width = (): number => Number(host.querySelector('svg')!.getAttribute('viewBox')!.split(' ')[2]);
+    const extent = width();
+
+    host.querySelector('svg')!.dispatchEvent(new WheelEvent('wheel', { deltaY: -100, bubbles: true }));
+    const zoomed = width();
+    expect(zoomed).toBeLessThan(extent);
+
+    // Clicking a neighbour used to rebuild the svg at full extent, throwing the
+    // zoom away; the level must survive.
+    host.querySelector<SVGGElement>('.dag-node[data-id="model"]')!
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(width()).toBeCloseTo(zoomed, 5);
+
+    // ...and the view is centred on the node just focused, not on the old one.
+    const vb = host.querySelector('svg')!.getAttribute('viewBox')!.split(' ').map(Number);
+    const focusRect = host.querySelector('.dag-node.focus .dag-rect')!;
+    const cx = Number(focusRect.getAttribute('x')) + Number(focusRect.getAttribute('width')) / 2;
+    expect(cx).toBeCloseTo(vb[0] + vb[2] / 2, 5);
+  });
+
+  it('reset-view returns to the whole graph after zooming', () => {
+    renderDag(index, host, 'likelihood', () => {});
+    const svg = host.querySelector('svg')!;
+    const initial = svg.getAttribute('viewBox');
+    svg.dispatchEvent(new WheelEvent('wheel', { deltaY: -100, bubbles: true }));
+    expect(svg.getAttribute('viewBox')).not.toBe(initial);
+    host.querySelector<HTMLButtonElement>('.dag-reset')!.click();
+    expect(svg.getAttribute('viewBox')).toBe(initial);
+  });
+
+  it('renders a kind colour key, using non-svg swatches', () => {
+    renderDag(index, host, 'likelihood', () => {});
+    const legend = host.querySelector('.dag-legend')!;
+    expect(legend).toBeTruthy();
+    const labels = [...legend.querySelectorAll('.dag-legend-item')].map((i) => i.textContent);
+    expect(labels).toContain('distribution');
+    // The graph must stay the only svg in the pane (tests and callers query it).
+    expect(host.querySelectorAll('svg').length).toBe(1);
+  });
+
+  it('caps the hop stepper instead of growing without bound', () => {
+    renderDag(index, host, 'likelihood', () => {});
+    const inc = (): HTMLButtonElement => host.querySelector<HTMLButtonElement>('.dag-hop-inc')!;
+    const hops = (): string => host.querySelector('.dag-hop-count')!.textContent!;
+    for (let i = 0; i < 30; i++) inc().click();
+    expect(Number(hops())).toBeLessThanOrEqual(12);
+    expect(inc().disabled).toBe(true);
+  });
+
   it('the reset-view toolbar button restores the framing after a pan', () => {
     renderDag(index, host, 'likelihood', () => {});
     const svg = host.querySelector<SVGSVGElement>('svg')!;

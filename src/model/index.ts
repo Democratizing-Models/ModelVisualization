@@ -11,4 +11,4 @@ export {
 } from './graph.js';
 export { validate } from './validate.js';
 export { ModelBuilder } from './builder.js';
-export { findNode } from './search.js';
+export { findNode, findMatches } from './search.js';
